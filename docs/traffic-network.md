@@ -22,8 +22,10 @@
 
 | Vai trò trong nghiên cứu | Tên bộ dữ liệu | Khu vực địa lý | Số đỉnh (Nodes) | Số cạnh (Edges) | Kích thước chuỗi thời gian | Đặc điểm cấu trúc mạng |
 | :--- | :--- | :--- | :---: | :---: | :--- | :--- |
-| **Chặng 1: Nghiên cứu chính (Primary)** | **PeMS04** | Vùng vịnh San Francisco | **307** | **340** | `(16992, 307, 3)` *(59 ngày)* | Mạng lưới thưa (~2,2 nối/trạm), dạng hành lang cao tốc kéo dài. |
-| **Chặng 2: Kiểm chứng cuối (Validation)** | **PeMS08** | Khu vực San Bernardino | **170** | **295** | `(17856, 170, 3)` *(62 ngày)* | Mạng lưới dày hơn (~3,5 nối/trạm), kết nối đan xen nhiều nhánh. |
+| **Chặng 1: Nghiên cứu chính (Primary)** | **PeMS08** | Khu vực San Bernardino | **170** | **295** *(277 duy nhất)* | `(17856, 170, 3)` *(62 ngày)* | Mạng lưới dày hơn (bậc TB `3.47`), dữ liệu gốc sạch hơn (`0.348%` giá trị `<= 0` ở Lưu lượng). |
+| **Chặng 2: Kiểm chứng cuối (Validation)** | **PeMS04** | Vùng vịnh San Francisco | **307** | **340** | `(16992, 307, 3)` *(59 ngày)* | Mạng lưới thưa hơn (bậc TB `2.21`), dạng hành lang cao tốc kéo dài, `1.590%` giá trị `<= 0`. |
+
+> **Ghi chú phân vai (từ kiểm toán ở `01_Overview.ipynb`):** Đảo ngược với dự kiến sơ bộ ban đầu, kiểm toán thực nghiệm cho thấy `PeMS08` có chuỗi dài hơn, đồ thị liên kết dày đặc hơn và tỷ lệ giá trị `0.0` thấp hơn gần 4.6 lần so với `PeMS04`, nên được chọn làm tập khám phá & huấn luyện chính; `PeMS04` đóng vai trò tập kiểm chứng chéo độc lập.
 
 ---
 
@@ -60,12 +62,12 @@
    * Sử dụng **SHAP (SHapley Additive exPlanations)** để giải thích các chỉ số cảnh báo sớm và làm cơ sở cho thí nghiệm giảm tải lưu lượng ở RQ2.
 
 ### Danh mục Biểu đồ Trực quan hóa (Chiếm 30% trọng số điểm)
-1. **Bản đồ cấu trúc mạng lưới (Gephi – bố cục *ForceAtlas2*):** Hiển thị 307 trạm PeMS04, kích thước đỉnh tỷ lệ thuận với tần suất tắc nghẽn, màu sắc thể hiện chỉ số *Betweenness Centrality* để làm nổi bật các nút thắt cổ chai.
+1. **Bản đồ cấu trúc mạng lưới (Gephi – bố cục *ForceAtlas2*):** Hiển thị 170 trạm PeMS08, kích thước đỉnh tỷ lệ thuận với tần suất tắc nghẽn, màu sắc thể hiện chỉ số *Betweenness Centrality* để làm nổi bật các nút thắt cổ chai.
 2. **Biểu đồ quỹ đạo pha (Phase Trajectory Plot):** Biểu diễn mối quan hệ `Flow – Occupancy – Speed` trong cửa sổ thời gian trước khi kẹt xe, cho thấy hiện tượng bão hòa mặt đường xảy ra trước khi vận tốc sụt giảm.
 3. **Biểu đồ độ nhạy thời gian & Network Gain (Line Chart):** Đối chiếu đường cong F1-Score của **GAT** vs. **Mô hình cục bộ** qua các mốc $\Delta t$ từ 5 đến 60 phút để chứng minh bằng số liệu khoảng thời gian cảnh báo sớm hiệu quả nhất.
 4. **Biểu đồ giải thích mô hình (SHAP Summary & Attention Graph):** Trực quan hóa mức độ đóng góp của các biến số từ trạm hàng xóm vào quyết định cảnh báo sớm.
 5. **Biểu đồ đánh giá thử nghiệm điều tiết (Sensitivity Curve & Before–After Comparison):** So sánh xác suất tắc nghẽn trước và sau khi giảm lưu lượng đầu nguồn ($10\%, 20\%, 30\%$).
-6. **Bảng đối chiếu kiểm chứng chéo (PeMS04 vs. PeMS08):** Tổng hợp kết quả đánh giá mô hình và hiệu quả điều tiết trên PeMS08 ở cuối phần *Results*.
+6. **Bảng đối chiếu kiểm chứng chéo (PeMS08 vs. PeMS04):** Tổng hợp kết quả đánh giá mô hình và hiệu quả điều tiết trên PeMS04 ở cuối phần *Results*.
 
 ---
 
@@ -74,12 +76,12 @@
 ### Phân bổ thời gian thuyết trình 10 phút (Chuẩn Rubric)
 * **01:30 — Vấn đề & 2 Câu hỏi nghiên cứu:** Đặt vấn đề kẹt xe dây chuyền tại các nút thắt và giới thiệu mục tiêu RQ1 (bắt dấu hiệu sớm) + RQ2 (thử nghiệm giảm tải).
 * **02:00 — Giải thích kỹ thuật trực quan (25% điểm):** Dùng sơ đồ minh họa 5 đỉnh (1 đỉnh trung tâm + 4 đỉnh lân cận) để giải thích dễ hiểu cách *Centrality* tìm điểm nghẽn và cách *GAT + SHAP* gom tín hiệu từ hàng xóm để cảnh báo sớm.
-* **03:00 — Bằng chứng RQ1 (Trên PeMS04):** Trình bày bản đồ nút nghẽn, biểu đồ quỹ đạo pha, biểu đồ *Network Gain* chọn mốc thời gian cảnh báo tối ưu, và biểu đồ SHAP.
-* **02:30 — Bằng chứng RQ2 & Kiểm chứng cuối trên PeMS08:** Trình bày biểu đồ hiệu quả giảm tắc nghẽn khi điều tiết lưu lượng đầu nguồn trên PeMS04, chốt lại bằng bảng kiểm chứng chéo trên PeMS08.
+* **03:00 — Bằng chứng RQ1 (Trên PeMS08):** Trình bày bản đồ nút nghẽn, biểu đồ quỹ đạo pha, biểu đồ *Network Gain* chọn mốc thời gian cảnh báo tối ưu, và biểu đồ SHAP.
+* **02:30 — Bằng chứng RQ2 & Kiểm chứng cuối trên PeMS04:** Trình bày biểu đồ hiệu quả giảm tắc nghẽn khi điều tiết lưu lượng đầu nguồn trên PeMS08, chốt lại bằng bảng kiểm chứng chéo trên PeMS04.
 * **01:00 — Kết luận & Hạn chế:** Tóm tắt phát hiện chính và nêu rõ giới hạn mô phỏng (chưa tính đến tải trọng phát sinh trên các tuyến đường vòng khi phân luồng).
 
 ### Lộ trình thực hiện theo các Checkpoint
-* **Checkpoint 1 (Proposal):** Hoàn tất định hình đề tài, 2 RQs tinh gọn, kiểm tra toàn vẹn dữ liệu PeMS04 & PeMS08 và gửi Google Form.
-* **Checkpoint 2 (Data & EDA trên PeMS04):** Kiểm tra và xử lý các chuỗi giá trị `0.0` lỗi cảm biến, tính toán *Centrality*, xác định Top nút thắt cổ chai và vẽ biểu đồ khám phá.
-* **Checkpoint 3 (Modeling & Simulation):** Huấn luyện GAT và mô hình Baseline trên PeMS04 qua các mốc 5–60 phút (RQ1), trích xuất SHAP, chạy thử nghiệm giảm lưu lượng đầu nguồn (RQ2), sau đó chạy đánh giá kiểm chứng toàn bộ trên PeMS08.
+* **Checkpoint 1 (Proposal):** Hoàn tất định hình đề tài, 2 RQs tinh gọn, kiểm tra toàn vẹn dữ liệu PeMS08 & PeMS04 và gửi Google Form.
+* **Checkpoint 2 (Data & EDA trên PeMS08):** Kiểm tra và xử lý các chuỗi giá trị `0.0` lỗi cảm biến, tính toán *Centrality*, xác định Top nút thắt cổ chai và vẽ biểu đồ khám phá.
+* **Checkpoint 3 (Modeling & Simulation):** Huấn luyện GAT và mô hình Baseline trên PeMS08 qua các mốc 5–60 phút (RQ1), trích xuất SHAP, chạy thử nghiệm giảm lưu lượng đầu nguồn (RQ2), sau đó chạy đánh giá kiểm chứng toàn bộ trên PeMS04.
 * **Checkpoint 4 (Final Paper & Defence):** Hoàn thiện bài báo chuẩn IEEE ($\le 3.000$ từ) và slide thuyết trình 10 phút.
