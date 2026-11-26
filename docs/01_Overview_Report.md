@@ -15,9 +15,9 @@ Toàn bộ dự án hướng tới giải đáp hai câu hỏi nghiên cứu:
 
 2. **RQ2 (Thử nghiệm giả lập điều tiết lưu lượng chủ động):** *Trong kịch bản giả lập dựa trên mô hình GNN, việc chủ động giảm bớt lưu lượng xe đầu nguồn ngay khi có tín hiệu cảnh báo sớm giúp giảm thiểu tình trạng tắc nghẽn tại các điểm nghẽn hiệu quả đến mức nào?*
 
-### Hệ thống công cụ & Lộ trình 6 bước
+### Hệ thống công cụ & Lộ trình 7 bước
 * **Công cụ kỹ thuật:** `Python 3.12`, `TensorFlow / Keras`, `Scikit-learn`, `NetworkX`, `Gephi`, `SHAP`, `NumPy`, `Pandas`, `SciPy`, `Matplotlib`, `Seaborn`.
-* **Quy trình 6 bước:** (`01`) Tổng quan & Chọn dữ liệu → (`02`) Làm sạch & Nội suy → (`03`) Khám phá EDA & Phân tích điểm nghẽn → (`04`) Thử nghiệm & Giải thích mô hình → (`05`) Giả lập điều tiết & Kiểm chứng chéo → (`06`) Tổng kết `RQ1 – RQ2`.
+* **Quy trình 7 bước:** (`01`) Tổng quan & Chọn dữ liệu → (`02`) Làm sạch & Nội suy → (`03`) Khám phá EDA & Phân tích điểm nghẽn → (`04`) Kiểm chứng dấu hiệu tiền tắc nghẽn & Chốt tham số → (`05`) Thử nghiệm & Giải thích mô hình → (`06`) Giả lập điều tiết & Kiểm chứng chéo → (`07`) Tổng kết `RQ1 – RQ2`.
 
 ---
 

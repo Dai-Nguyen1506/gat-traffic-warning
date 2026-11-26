@@ -1,6 +1,6 @@
 # Quy chuẩn & Kinh nghiệm Vận hành Dự án (`docs/rules.md`)
 
-Tài liệu này tổng hợp toàn bộ các quy tắc bắt buộc được đúc kết từ thực tế triển khai các Notebook `01`, `02`, `03` của dự án. Mọi phiên làm việc và trợ lý AI kế tiếp **phải tuân thủ nghiêm ngặt** các quy tắc dưới đây để đảm bảo tính khoa học, mạch lạc và chặt chẽ từ khâu làm sạch dữ liệu tới mô hình hóa và viết báo cáo.
+Tài liệu này tổng hợp toàn bộ các quy tắc bắt buộc được đúc kết từ thực tế triển khai các Notebook `01 – 04` của dự án. Mọi phiên làm việc và trợ lý AI kế tiếp **phải tuân thủ nghiêm ngặt** các quy tắc dưới đây để đảm bảo tính khoa học, mạch lạc và chặt chẽ từ khâu làm sạch dữ liệu tới mô hình hóa và viết báo cáo.
 
 ---
 
@@ -21,10 +21,11 @@ Tài liệu này tổng hợp toàn bộ các quy tắc bắt buộc được đ
 
 4. **Khớp 100% số liệu thực tế & Trung thực với giới hạn thống kê:**
    * Mọi con số đưa vào Markdown, biểu đồ hoặc báo cáo phải lấy **trực tiếp từ `stdout` lần chạy gần nhất** sau lần chỉnh sửa cuối cùng — không ước lượng, không giữ số cũ từ lần chạy trước khi đổi định nghĩa.
-   * Không phóng đại kết quả (*no overclaiming*): nêu rõ giới hạn khi một kiểm định không có ý nghĩa (`p > 0.05` như `Betweenness` hoặc không lặp lại trên `PEMS04` như `Closeness`). Khi hệ số `Pearson r` bị nén toán học do sự kiện hiếm (tỷ lệ nền `1.56%–2.34%`), bổ sung thêm thước đo phân tách xác suất có điều kiện (`Risk Ratio`).
+   * Không phóng đại kết quả (*no overclaiming*): nêu rõ giới hạn khi một kiểm định không có ý nghĩa (`p > 0.05` như `Betweenness` hoặc không lặp lại trên `PEMS04` như `Closeness`). Với sự kiện hiếm (khởi phát tắc `~1%`), tránh chỉ dựa vào `Pearson r` hoặc `ROC-AUC` đã bão hòa — sử dụng thêm `PR-AUC`, `Log-Loss` (kèm kiểm định Likelihood-Ratio $\chi^2$) và `Risk Ratio`.
+   * Không giả định trước kết quả của mục sau cho mục trước (bài học từ Notebook `04`: dùng bước đo tự nhiên nhỏ nhất `Δt = 5 phút` cho các kiểm định Mục 3–5 và chỉ chốt `Δt* = 15 phút` ở Mục 6; đánh giá không gian bằng so sánh trực tiếp `Self only` với `Self + Chiều vào / Chiều ra / 2 chiều` thay vì tách rời hàng xóm khỏi `Self`).
 
 5. **Chốt dứt khoát tham số & mốc bàn giao ở cuối mỗi bước:**
-   * Cuối mỗi Notebook phải tổng kết rõ các tham số đã chốt, định nghĩa nhãn và mốc thời gian bàn giao sang bước kế tiếp (ví dụ NB03 chốt cửa sổ trọng tâm `10–20 phút`, mốc chuẩn `15 phút`, dải kiểm thử đầy đủ $\Delta t \in \{5, 10, 15, 20, 30\}$ phút).
+   * Cuối mỗi Notebook phải tổng kết rõ các tham số đã chốt, định nghĩa nhãn và mốc thời gian bàn giao sang bước kế tiếp (ví dụ NB03 chốt tiêu chí `(Speed < 40 & Occ ≥ 0,15)` và Top 20 điểm nghẽn; NB04 chốt `H* = 8` bước, đồ thị `Self + 2 chiều`, mốc chuẩn `Δt* = 15 phút` và dải quét `{5, 10, 15, 20, 30}` phút).
 
 ---
 
@@ -40,8 +41,8 @@ Tài liệu này tổng hợp toàn bộ các quy tắc bắt buộc được đ
    * Cuối khối `> **Nhận xét (...):**` luôn có tiểu mục **`> **Câu hỏi nghi vấn tiếp theo:**`** làm cầu nối logic dẫn sang mục tiếp theo hoặc notebook kế tiếp.
 
 3. **Không cài cứng (hardcode) kết luận tương lai vào các bước đầu:**
-   * Hai câu hỏi nghiên cứu lớn (`RQ1`, `RQ2`) chỉ giới thiệu ở `01_Overview.ipynb` và kết luận ở `06_Research_Synthesis_and_Conclusions.ipynb`.
-   * Các notebook khám phá và tiền xử lý (`01–03`) **không nêu trước tên kiến trúc cụ thể** của bước mô hình hóa hay giải thích mô hình (giữ câu hỏi mở để đối chiếu công bằng nhiều hướng mô hình ở `04`).
+   * Hai câu hỏi nghiên cứu lớn (`RQ1`, `RQ2`) chỉ giới thiệu ở `01_Overview.ipynb` và kết luận ở `07_Research_Synthesis_and_Conclusions.ipynb`.
+   * Các notebook khám phá, làm sạch và kiểm chứng dấu hiệu (`01–04`) **không nêu trước tên kiến trúc học sâu cụ thể** của bước mô hình hóa hay giải thích mô hình (giữ câu hỏi mở để đối chiếu công bằng nhiều hướng mô hình ở `05`).
 
 ---
 

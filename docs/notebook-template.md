@@ -9,12 +9,13 @@ Tài liệu này gợi ý cấu trúc gọn nhẹ, chuẩn mực cho các notebo
 | Số thứ tự | Tệp Notebook (`notebooks/`) | Tệp Báo cáo (`docs/`) | Nội dung chính |
 | :---: | :--- | :--- | :--- |
 | **00** | `00_Notebook_Template.ipynb` | — | File mẫu chuẩn hóa cấu trúc dùng để nhân bản khi tạo notebook mới. |
-| **01** | `01_Overview.ipynb` | [`01_Overview_Report.md`](./01_Overview_Report.md) | Tổng quan đề tài, RQ1–RQ2, công cụ, lộ trình 6 bước và kiểm toán 4 bộ dữ liệu gốc. |
+| **01** | `01_Overview.ipynb` | [`01_Overview_Report.md`](./01_Overview_Report.md) | Tổng quan đề tài, RQ1–RQ2, công cụ, lộ trình 7 bước và kiểm toán 4 bộ dữ liệu gốc. |
 | **02** | `02_Data_Cleaning_and_Interpolation.ipynb` | [`02_Data_Cleaning_Report.md`](./02_Data_Cleaning_Report.md) | Kiểm toán lỗi cảm biến và nội suy làm sạch dữ liệu. |
-| **03** | `03_EDA_and_Bottleneck_Analysis.ipynb` | [`03_EDA_and_Bottleneck_Report.md`](./03_EDA_and_Bottleneck_Report.md) | Khám phá dữ liệu sạch, chốt tiêu chí tắc nghẽn 3 biến, định danh điểm nghẽn và tín hiệu tiền tắc nghẽn. |
-| **04** | `04_Modeling_and_Explainability.ipynb` | `04_Modeling_Report.md` *(dự kiến)* | Thiết kế, thử nghiệm, lựa chọn mô hình dự báo cảnh báo sớm (`TensorFlow / Keras`) và giải thích mô hình. |
-| **05** | `05_Simulation_and_Cross_Validation.ipynb` | `05_Simulation_Report.md` *(dự kiến)* | Giả lập điều tiết lưu lượng đầu nguồn và kiểm chứng chéo sang PEMS04. |
-| **06** | `06_Research_Synthesis_and_Conclusions.ipynb` | `06_Synthesis_Report.md` *(dự kiến)* | Tổng hợp toàn bộ bằng chứng định lượng và kết luận trọn vẹn RQ1 – RQ2. |
+| **03** | `03_EDA_and_Bottleneck_Analysis.ipynb` | [`03_EDA_and_Bottleneck_Report.md`](./03_EDA_and_Bottleneck_Report.md) | Khám phá dữ liệu sạch, chốt tiêu chí tắc nghẽn 3 biến, định danh Top 20 điểm nghẽn và phân tích đồ thị tĩnh. |
+| **04** | `04_Pre_Congestion_Signal_Analysis.ipynb` | [`04_Pre_Congestion_Signal_Report.md`](./04_Pre_Congestion_Signal_Report.md) | Kiểm chứng dấu hiệu tiền tắc nghẽn: quỹ đạo pha, chốt cửa sổ `H*`, độ biến động, cấu trúc không gian đa nhánh và tìm `Δt*`. |
+| **05** | `05_Modeling_and_Explainability.ipynb` | [`05_Modeling_Report.md`](./05_Modeling_Report.md) | Thiết kế, thử nghiệm, lựa chọn mô hình dự báo cảnh báo sớm (`TensorFlow / Keras`) và giải thích mô hình. |
+| **06** | `06_Simulation_and_Cross_Validation.ipynb` | `06_Simulation_Report.md` *(dự kiến)* | Giả lập điều tiết lưu lượng đầu nguồn và kiểm chứng chéo sang PEMS04. |
+| **07** | `07_Research_Synthesis_and_Conclusions.ipynb` | `07_Synthesis_Report.md` *(dự kiến)* | Tổng hợp toàn bộ bằng chứng định lượng và kết luận trọn vẹn RQ1 – RQ2. |
 
 ### Quy ước thư mục lưu trữ
 * **Dữ liệu không đẩy lên GitHub (nằm trong `.gitignore`):** Dữ liệu thô tại `datasets/data/` và dữ liệu đã làm sạch tại `datasets/cleaned/`.
