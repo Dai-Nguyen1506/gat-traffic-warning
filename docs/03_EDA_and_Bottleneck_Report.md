@@ -51,17 +51,18 @@ Từ điều kiện tắc thực ở Phần 2, Phần 3 xác lập **Pha chuyể
 1. **Nhóm 1 — Dao động khử dốc (*Kerner, 2004*):** `occ_rstd`, `spd_rstd`, `flow_rstd`. Tại `t = 0`, `occ_rstd` và `spd_rstd` tăng vọt **`2,29× – 2,37×`** so với mốc `-60p`, còn `flow_rstd` chỉ tăng `1,12×`.
 2. **Nhóm 2 — Liên kết Đa biến (*Multivariate CSD* — Chattopadhyay & Gupta, *RSOS* 2026):** Kế thừa kết luận của bài báo rằng các chỉ báo đa biến vượt trội chỉ báo đơn biến, sử dụng 2 cặp tương quan chéo nhất quán theo Biểu đồ cơ bản: **`occ_spd_corr` (`-corr(Occ, Speed)`)** tăng từ **`+0,552 → +0,905`** (`AUC = 0,8490`, `≥55 mph: 0,7304`) và **`flow_occ_decouple` (`-corr(Flow, Occ)`)** bứt phá từ **`-0,648 → +0,135`** (`AUC = 0,8217`, `≥55 mph: 0,6439`).
 3. **Nhóm 3 — Độ dốc có dấu (*California / McMaster* & phần xu hướng từ bước khử dốc):** `occ_slope` và `spd_slope`. Trên trọn chu kỳ **`-60p → +90p`** của **`n = 3.199` ca mới sạch** (`48,4%` trong `6.611` ca trên `170` trạm), khi bước sang pha hồi phục (`t = +60p`) dù `occ_rstd` còn cao gấp **`2,41×`**, cặp độ dốc lập tức **đảo dấu đối xứng** (`spd_slope = +0,85 mph/5p`, `occ_slope = -0,0042/5p`) để chặn báo động giả.
+4. **Nhóm 4 — Chu kỳ Thời gian (*STID* — Shao et al., *CIKM* 2022):** `tod_sin, tod_cos, dow_sin, dow_cos` (`4` biến) mã hóa khung giờ cao điểm và ngày thường/cuối tuần — bổ sung tiếp ý nghĩa thống kê rất rõ ở tầm xa (`p = 1,56e-19` ở `30p`), hoàn thiện cơ sở định lượng cho trọn bộ **`14` đặc trưng cục bộ**.
 
-### Đánh giá định lượng toàn mạng (`Δt = 15p` đơn biến & `LRT` trên chia `60 / 20 / 20`)
+### Đánh giá định lượng toàn mạng (`Δt = 15p` đơn biến & `LRT` từng bước trên chia `60 / 20 / 20`)
 
 * **Sức mạnh đơn biến (`n = 2.928.641` điểm thông sạch 60p):** Toàn bộ `7` chỉ báo đều đạt mạnh và đồng đều (`AUC = 0,78–0,93`, $p < 10^{-300}$): `occ_rstd` **`0,9318`** (`RR 36,42×`, `≥55 mph: 0,8613`), `spd_rstd` **`0,9044`** (`25,67×`, `0,7983`), **`occ_spd_corr` `0,8490`** (`13,54×`, `0,7304`), **`flow_occ_decouple` `0,8217`** (`10,49×`, `0,6439`), `spd_slope` `0,8113`, `occ_slope` `0,8101`, `flow_rstd` `0,7784`.
-* **Giá trị cộng thêm `LRT` (`60 / 20 / 20`):**
+* **Giá trị cộng thêm từng bước `LRT` (`60 / 20 / 20`):**
 
-| Tầm cảnh báo (`Δt`) | `Raw 3 biến` (`Val PR-AUC`) | `Raw + 7 CSD` (`Val PR-AUC`) | Tăng `PR-AUC` (%) | `Log-Loss` (`Raw → +CSD`) | `LRT χ²` (`df = 7`) | `p` *(LRT)* |
+| Tầm cảnh báo (`Δt`) | `Raw 3 biến` | `+7 Chỉ báo (10)` | **`+4 Chu kỳ STID (Chốt 14)`** | Tổng tăng `PR-AUC` (%) | `p` *(+7 Chỉ báo)* | `p` *(+4 STID)* |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`5 phút`** | 0,1888 | **0,2480** | **`+31,33%`** | `0,00422 → 0,00400` | **263,8** | **`3,20e-53`** |
-| **`15 phút`** | 0,1483 | **0,1797** | **`+21,15%`** | `0,01217 → 0,01164` | **616,3** | **`7,68e-129`** |
-| **`30 phút`** | 0,1168 | **0,1437** | **`+23,00%`** | `0,02125 → 0,02034` | **1.060,4** | **`1,04e-224`** |
+| **`5 phút`** | 0,1888 | 0,2480 | **0,2486** | **`+31,66%`** | `3,20e-53` | `7,32e-06` |
+| **`15 phút`** | 0,1483 | 0,1797 | **0,1817** | **`+22,51%`** | `7,68e-129` | `6,28e-05` |
+| **`30 phút`** | 0,1168 | 0,1437 | **0,1448** | **`+23,99%`** | `1,04e-224` | `1,56e-19` |
 
 * **Biểu đồ minh họa:** [`nb03_precongestion_trajectories.png`](../outputs/figures/nb03_precongestion_trajectories.png) · [`nb03_precongestion_validation.png`](../outputs/figures/nb03_precongestion_validation.png)
 
@@ -78,15 +79,15 @@ Từ điều kiện tắc thực ở Phần 2, Phần 3 xác lập **Pha chuyể
 
   *(Phản ví dụ trực tiếp: `N9` tắc `18,1%` có `Betweenness = 0,0000`, `N65` tắc `15,7%` có `Betweenness = 0,0047`).*
 
-* **Mặt 2 — Tương tác ĐỘNG trên cạnh có hướng (`Lân cận Đầu vào In` & `Đầu ra Out` — DCRNN, `Li et al., 2018`) đóng góp rõ rệt, đặc biệt ở tầm xa `15–30p`:**
+* **Mặt 2 — Tương tác ĐỘNG trên cạnh có hướng (`Lân cận Đầu vào In` & `Đầu ra Out` — DCRNN, `Li et al., 2018`; PDFormer, `Jiang et al., AAAI 2023`):**
 
-| Tầm cảnh báo (`Δt`) | Cục bộ (`3 gốc + 7 chỉ báo`) | `+ Lân cận In` (Đầu vào) | `+ Lân cận Out` (Đầu ra) | **`+ Cả 2 chiều (In + Out)`** | Tăng `PR-AUC` (%) | `LRT χ²` (`df = 6`) | `p` *(LRT)* |
+| Tầm cảnh báo (`Δt`) | Cục bộ (`14 đặc trưng`) | `+ Lân cận In` (Đầu vào) | `+ Lân cận Out` (Đầu ra) | **`+ Cả 2 chiều (In + Out)`** | Tăng `PR-AUC` (%) | `LRT χ²` (`df = 6`) | `p` *(LRT)* |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`5 phút`** | 0,2480 | 0,2471 | 0,2528 | **0,2514** | **`+1,35%`** | **51,6** | **`2,25e-09`** |
-| **`15 phút`** | 0,1797 | 0,1853 | 0,1867 | **0,1896** | **`+5,51%`** | **206,6** | **`7,37e-42`** |
-| **`30 phút`** | 0,1437 | 0,1456 | 0,1518 | **0,1516** | **`+5,53%`** | **431,4** | **`4,93e-90`** |
+| **`5 phút`** | 0,2486 | 0,2520 | 0,2506 | **0,2533** | **`+1,88%`** | **33,0** | **`1,03e-05`** |
+| **`15 phút`** | 0,1817 | 0,1849 | 0,1859 | **0,1907** | **`+4,96%`** | **197,4** | **`6,81e-40`** |
+| **`30 phút`** | 0,1448 | 0,1469 | 0,1519 | **0,1528** | **`+5,48%`** | **409,2** | **`2,98e-85`** |
 
-  *Chiều `Out` (sóng tắc dội ngược từ hạ nguồn) mạnh hơn `In` ở cả `3` mốc, và lợi ích đồ thị thể hiện rõ nhất ở tầm `15–30 phút` khi sóng tắc có đủ thời gian lan truyền giữa các trạm.*
+  *Mức tăng bứt phá ở tầm xa `15–30 phút` (với chiều `Out` sóng tắc dội ngược từ hạ nguồn nổi trội) khớp trực tiếp với cơ chế độ trễ lan truyền không gian của **PDFormer (2023)** — là căn cứ đưa trực tiếp đồ thị có hướng 2 chiều vào mô hình chú ý đồ thị ở `NB04` (không cần tạo biến hàng xóm thủ công).*
 * **Biểu đồ minh họa:** [`nb03_spatial_and_betweenness.png`](../outputs/figures/nb03_spatial_and_betweenness.png)
 
 ---

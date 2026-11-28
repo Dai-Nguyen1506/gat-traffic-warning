@@ -242,6 +242,19 @@ def _causal_neg_cross_corr(x: np.ndarray, y: np.ndarray, window: int = 12) -> np
     return out
 
 
+def extract_time_features(T: int, N: int, start_dow: int = 4) -> np.ndarray:
+    """
+    Build 4 cyclical time-of-day / day-of-week features (STID — Shao et al., CIKM 2022):
+    [tod_sin, tod_cos, dow_sin, dow_cos], broadcast to (T, N, 4).
+    Default start_dow=4 corresponds to Friday 2016-07-01 for PEMS08 (Monday=0 for PEMS04 2018-01-01).
+    """
+    t = np.arange(T, dtype=np.float64)
+    tod = 2.0 * np.pi * (t % 288) / 288.0
+    dow = 2.0 * np.pi * (((t // 288) + start_dow) % 7) / 7.0
+    tf = np.stack([np.sin(tod), np.cos(tod), np.sin(dow), np.cos(dow)], axis=-1).astype(np.float32)
+    return np.broadcast_to(tf[:, None, :], (T, N, 4)).copy()
+
+
 def extract_precongestion_features(data: np.ndarray, window: int = 12) -> np.ndarray:
     """
     Compute strictly causal 7-channel Detrended Volatility, Multivariate CSD Coupling, and Signed Slope tensor
@@ -279,17 +292,17 @@ def evaluate_precongestion_signals(
     is_congested: np.ndarray,
     is_synchronized: np.ndarray,
     csd: np.ndarray,
+    time4: np.ndarray | None = None,
     window: int = 12,
     post_steps: int = 18,
     lead_univar: int = 3,
     seed: int = 42,
 ) -> dict:
     """
-    Run clean full-network RQ1 evaluation of the 7 pre-congestion signals on fresh breakdowns
-    (zero congestion in prior `window` steps):
-      - Full-cycle mean trajectory over [-window .. +post_steps] (default -60m .. +90m, covering onset + recovery)
-      - Univariate ROC-AUC & Top-10% Risk Ratio (all clean-60m vs clean-60m & Speed >= 55 mph)
-      - Added-value Likelihood-Ratio Test (60/20/20 split, Raw 3 vs Raw + 7 CSD) for dt in {5, 15, 30}m.
+    Run clean full-network RQ1 evaluation on fresh breakdowns (zero congestion in prior `window` steps):
+      - Full-cycle mean trajectory over [-window .. +post_steps] (-60m .. +90m, onset + recovery)
+      - Univariate ROC-AUC & Top-10% Risk Ratio for the 7 pre-congestion indicators
+      - Stepwise 60/20/20 LRT: Raw 3 -> +7 Pre-Congestion Signals (10) -> +4 STID Time Cycles (14).
     """
     from scipy.stats import chi2, mannwhitneyu
     from sklearn.linear_model import LogisticRegression
@@ -297,6 +310,8 @@ def evaluate_precongestion_signals(
     from sklearn.preprocessing import StandardScaler
 
     T, N, _ = data.shape
+    if time4 is None:
+        time4 = extract_time_features(T, N, start_dow=4)
     flow, occ, spd = data[:, :, 0], data[:, :, 1], data[:, :, 2]
     cg_past = np.vstack([np.ones((window - 1, N), dtype=bool), sliding_window_view(is_congested, window, axis=0).any(axis=-1)])
 
@@ -346,7 +361,7 @@ def evaluate_precongestion_signals(
             "p (Mann–Whitney)": "< 1e-300" if pv == 0.0 else f"{pv:.2e}",
         })
 
-    # 3. Added-value LRT (60/20/20 chronological split)
+    # 3. Stepwise Added-Value LRT (60/20/20): Raw(3) -> +7 Signals(10) -> +4 STID Time(14)
     t_tr, t_va = int(T * 0.60), int(T * 0.80)
     lrt_rows = []
     for lead in [1, 3, 6]:
@@ -354,28 +369,31 @@ def evaluate_precongestion_signals(
             fn_m = ~cg_past[a:b]
             yy = is_congested[a + lead : b + lead][fn_m].astype(int)
             xr = data[a:b][fn_m]
-            xc = csd[a:b][fn_m]
-            return xr, np.hstack([xr, xc]), yy
+            x10 = np.hstack([xr, csd[a:b][fn_m]])
+            x14 = np.hstack([x10, time4[a:b][fn_m]])
+            return xr, x10, x14, yy
 
-        Xr_tr, Xb_tr, y_tr = _sl(window, t_tr - lead)
-        Xr_va, Xb_va, y_va = _sl(t_tr, t_va - lead)
-        sc_r, sc_b = StandardScaler().fit(Xr_tr), StandardScaler().fit(Xb_tr)
-        clf_r = LogisticRegression(max_iter=500, random_state=seed).fit(sc_r.transform(Xr_tr), y_tr)
-        clf_b = LogisticRegression(max_iter=500, random_state=seed).fit(sc_b.transform(Xb_tr), y_tr)
-        pr_r = clf_r.predict_proba(sc_r.transform(Xr_va))[:, 1]
-        pr_b = clf_b.predict_proba(sc_b.transform(Xb_va))[:, 1]
-        ap_r, ap_b = float(average_precision_score(y_va, pr_r)), float(average_precision_score(y_va, pr_b))
-        ll_r, ll_b = float(log_loss(y_va, pr_r)), float(log_loss(y_va, pr_b))
-        c2 = float(2.0 * len(y_va) * max(0.0, ll_r - ll_b))
-        pv = float(chi2.sf(c2, df=len(CSD_FEATURE_NAMES)))
+        Xr_tr, X10_tr, X14_tr, y_tr = _sl(window, t_tr - lead)
+        Xr_va, X10_va, X14_va, y_va = _sl(t_tr, t_va - lead)
+
+        def _fe(Xtr, Xva):
+            sc = StandardScaler().fit(Xtr)
+            pr = LogisticRegression(max_iter=500, random_state=seed).fit(sc.transform(Xtr), y_tr).predict_proba(sc.transform(Xva))[:, 1]
+            return float(average_precision_score(y_va, pr)), float(log_loss(y_va, pr))
+
+        ap_r, ll_r = _fe(Xr_tr, Xr_va)
+        ap_10, ll_10 = _fe(X10_tr, X10_va)
+        ap_14, ll_14 = _fe(X14_tr, X14_va)
+        c2_7 = float(2.0 * len(y_va) * max(0.0, ll_r - ll_10))
+        c2_t = float(2.0 * len(y_va) * max(0.0, ll_10 - ll_14))
         lrt_rows.append({
             "Tầm cảnh báo (Δt)": f"{lead*5} phút",
-            "Raw 3 biến (Val PR-AUC)": round(ap_r, 4),
-            "Raw + 7 CSD (Val PR-AUC)": round(ap_b, 4),
-            "Tăng PR-AUC (%)": f"{(ap_b / ap_r - 1.0) * 100:+.2f}%",
-            "Log-Loss (Raw → +CSD)": f"{ll_r:.5f} → {ll_b:.5f}",
-            "LRT χ² (df=7)": round(c2, 1),
-            "p (LRT)": f"{pv:.2e}",
+            "Raw 3 biến": round(ap_r, 4),
+            "+7 Chỉ báo (10)": round(ap_10, 4),
+            "+4 Chu kỳ STID (14)": round(ap_14, 4),
+            "Tổng tăng PR-AUC (%)": f"{(ap_14 / ap_r - 1.0) * 100:+.2f}%",
+            "p (+7 Chỉ báo)": f"{float(chi2.sf(c2_7, df=7)):.2e}",
+            "p (+4 STID)": f"{float(chi2.sf(c2_t, df=4)):.2e}",
         })
 
     return {
@@ -393,14 +411,13 @@ def evaluate_dynamic_graph_signals(
     edges_df: pd.DataFrame,
     is_congested: np.ndarray,
     csd: np.ndarray,
+    time4: np.ndarray | None = None,
     window: int = 12,
     seed: int = 42,
 ) -> pd.DataFrame:
     """
     Quantify dynamic directed-graph contribution (upstream In & downstream Out neighbor states
-    [Flow, Occ, Speed]) on top of local [3 raw + 7 pre-congestion] features via 60/20/20 LRT.
-    Demonstrates that while static graph topology (Betweenness) fails, dynamic neighbor states
-    flowing along directed edges significantly improve congestion forecasting (DCRNN principle).
+    [Flow, Occ, Speed]) on top of all 14 local features [3 raw + 7 pre-congestion + 4 STID time] via 60/20/20 LRT.
     """
     from scipy.stats import chi2
     from sklearn.linear_model import LogisticRegression
@@ -408,6 +425,8 @@ def evaluate_dynamic_graph_signals(
     from sklearn.preprocessing import StandardScaler
 
     T, N, _ = data.shape
+    if time4 is None:
+        time4 = extract_time_features(T, N, start_dow=4)
     a_in = np.zeros((N, N), dtype=np.float32)
     a_out = np.zeros((N, N), dtype=np.float32)
     for row in edges_df.itertuples(index=False):
@@ -437,8 +456,8 @@ def evaluate_dynamic_graph_signals(
         y_tr = is_congested[window + lead : t_tr][m_tr].astype(int)
         y_va = is_congested[t_tr + lead : t_va][m_va].astype(int)
 
-        xl_tr = np.hstack([data[window : t_tr - lead][m_tr], csd[window : t_tr - lead][m_tr]])
-        xl_va = np.hstack([data[t_tr : t_va - lead][m_va], csd[t_tr : t_va - lead][m_va]])
+        xl_tr = np.hstack([data[window : t_tr - lead][m_tr], csd[window : t_tr - lead][m_tr], time4[window : t_tr - lead][m_tr]])
+        xl_va = np.hstack([data[t_tr : t_va - lead][m_va], csd[t_tr : t_va - lead][m_va], time4[t_tr : t_va - lead][m_va]])
         xi_tr = np.hstack([xl_tr, nbr_in[window : t_tr - lead][m_tr]])
         xi_va = np.hstack([xl_va, nbr_in[t_tr : t_va - lead][m_va]])
         xo_tr = np.hstack([xl_tr, nbr_out[window : t_tr - lead][m_tr]])
@@ -455,7 +474,7 @@ def evaluate_dynamic_graph_signals(
         pv = float(chi2.sf(c2, df=6))
         rows.append({
             "Tầm cảnh báo (Δt)": f"{lead * 5} phút",
-            "Cục bộ (3 gốc + 7 chỉ báo)": round(ap_l, 4),
+            "Cục bộ (14 đặc trưng)": round(ap_l, 4),
             "+ Lân cận In (Đầu vào)": round(ap_i, 4),
             "+ Lân cận Out (Đầu ra)": round(ap_o, 4),
             "+ Cả 2 chiều (In + Out)": round(ap_b, 4),

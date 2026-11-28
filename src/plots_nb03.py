@@ -288,17 +288,20 @@ def plot_precongestion_validation(
 
     ax = axes[1]
     ax.grid(axis="y", alpha=0.65); ax.set_axisbelow(True)
-    x2, w2 = np.arange(len(lrt_df)), 0.34
-    vr, vc = lrt_df["Raw 3 biến (Val PR-AUC)"].to_numpy(), lrt_df["Raw + 7 CSD (Val PR-AUC)"].to_numpy()
-    ax.bar(x2 - w2 / 2, vr, width=w2, color="#CBD5E1", edgecolor="#94A3B8", lw=0.6, label="Chỉ 3 biến thô (Flow, Occ, Speed)")
-    ax.bar(x2 + w2 / 2, vc, width=w2, color=PAL["blue"], label="3 biến thô + 7 chỉ báo tiền tắc")
+    x2, w2 = np.arange(len(lrt_df)), 0.25
+    vr = lrt_df["Raw 3 biến"].to_numpy()
+    v10 = lrt_df["+7 Chỉ báo (10)"].to_numpy()
+    v14 = lrt_df["+4 Chu kỳ STID (14)"].to_numpy()
+    ax.bar(x2 - w2, vr, width=w2, color="#CBD5E1", edgecolor="#94A3B8", lw=0.6, label="Chỉ 3 biến thô")
+    ax.bar(x2, v10, width=w2, color=PAL["blue"], label="+ 7 chỉ báo tiền tắc (10)")
+    ax.bar(x2 + w2, v14, width=w2, color=PAL["navy"], label="+ 4 chu kỳ STID (Chốt 14)")
     for k in range(len(x2)):
-        ax.text(x2[k] - w2 / 2, vr[k] + 0.006, f"{vr[k]:.4f}", ha="center", va="bottom", fontsize=8.3, color=PAL["slate"])
-        ax.text(x2[k] + w2 / 2, vc[k] + 0.006, f"{vc[k]:.4f}\n({lrt_df['Tăng PR-AUC (%)'].iloc[k]})", ha="center", va="bottom", fontsize=8.3, fontweight="bold", color=PAL["navy"])
-    ax.set_xticks(x2, [f"Δt = {l}\n(p = {p})" for l, p in zip(lrt_df["Tầm cảnh báo (Δt)"], lrt_df["p (LRT)"])], fontsize=8.4)
-    ax.set_ylim(0, 0.325); ax.set_ylabel("Validation PR-AUC (chia 60/20/20)")
-    ax.set_title("(B) Giá trị cộng thêm khi gộp 7 chỉ báo (Kiểm định LRT)", fontweight="bold")
-    ax.legend(frameon=False, loc="upper right", fontsize=8.3)
+        ax.text(x2[k] - w2, vr[k] + 0.005, f"{vr[k]:.3f}", ha="center", va="bottom", fontsize=7.8, color=PAL["slate"])
+        ax.text(x2[k] + w2, v14[k] + 0.005, f"{v14[k]:.3f}\n({lrt_df['Tổng tăng PR-AUC (%)'].iloc[k]})", ha="center", va="bottom", fontsize=7.9, fontweight="bold", color=PAL["navy"])
+    ax.set_xticks(x2, [f"Δt = {l}\n(p_STID = {p})" for l, p in zip(lrt_df["Tầm cảnh báo (Δt)"], lrt_df["p (+4 STID)"])], fontsize=8.1)
+    ax.set_ylim(0, 0.335); ax.set_ylabel("Validation PR-AUC (chia 60/20/20)")
+    ax.set_title("(B) Giá trị cộng thêm từng bước: Raw → +7 Chỉ báo → +4 STID (14)", fontweight="bold")
+    ax.legend(frameon=False, loc="upper right", fontsize=8.0)
 
     fig.tight_layout(w_pad=2.4)
     _save_and_show(fig, save_path)
@@ -355,12 +358,12 @@ def plot_spatial_and_graph(
 
     ax_d.grid(axis="y", alpha=0.65); ax_d.set_axisbelow(True)
     xg, wg = np.arange(len(graph_lrt_df)), 0.20
-    v_loc = graph_lrt_df["Cục bộ (3 gốc + 7 chỉ báo)"].to_numpy()
+    v_loc = graph_lrt_df["Cục bộ (14 đặc trưng)"].to_numpy()
     v_in = graph_lrt_df["+ Lân cận In (Đầu vào)"].to_numpy()
     v_out = graph_lrt_df["+ Lân cận Out (Đầu ra)"].to_numpy()
     v_both = graph_lrt_df["+ Cả 2 chiều (In + Out)"].to_numpy()
 
-    ax_d.bar(xg - 1.5 * wg, v_loc, width=wg, color="#CBD5E1", edgecolor="#94A3B8", lw=0.6, label="Chỉ cục bộ (3 gốc + 7 chỉ báo)")
+    ax_d.bar(xg - 1.5 * wg, v_loc, width=wg, color="#CBD5E1", edgecolor="#94A3B8", lw=0.6, label="Chỉ cục bộ (14 đặc trưng)")
     ax_d.bar(xg - 0.5 * wg, v_in, width=wg, color=PAL["amber"], label="+ Lân cận In (Đầu vào)")
     ax_d.bar(xg + 0.5 * wg, v_out, width=wg, color=PAL["teal"], label="+ Lân cận Out (Đầu ra)")
     ax_d.bar(xg + 1.5 * wg, v_both, width=wg, color=PAL["navy"], label="+ Cả 2 chiều (In + Out)")
