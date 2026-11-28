@@ -1,114 +1,82 @@
-# Báo cáo Bước 02: Làm sạch Dữ liệu & Nội suy Chuỗi Thời gian
+# Báo cáo Bước 02: Làm sạch Dữ liệu & Phục hồi Cảm biến theo Chen et al. (2003)
 
-* **Tệp nguồn:** [`02_Data_Cleaning_and_Interpolation.ipynb`](../notebooks/02_Data_Cleaning_and_Interpolation.ipynb)
-* **Dữ liệu đầu ra đã lưu:** `datasets/cleaned/PEMS08_clean.npz` và `datasets/cleaned/PEMS04_clean.npz` *(lưu trong `datasets/` để `.gitignore` bỏ qua khi đẩy Git)*.
-* **Mục tiêu:** Thiết lập tiêu chí thực nghiệm tách biệt trạng thái đường vắng ban đêm hợp lệ với lỗi mất tín hiệu cảm biến, kiểm định chiến lược phục hồi tối ưu và tạo bộ dữ liệu sạch hoàn toàn cho `PEMS08` và `PEMS04`.
-
----
-
-## 1. Cơ sở Thực nghiệm Phân biệt Đường vắng & Lỗi Cảm biến
-
-Do `Vận tốc` không có giá trị `0.0` (`Min = 3.0 mph`), việc tách bạch các điểm `<= 0` tập trung vào `Lưu lượng` và `Độ chiếm dụng`. Để tránh gán ngưỡng tùy tiện, toàn bộ tham số được đo trực tiếp từ hai tập con tách biệt trên `PEMS08`:
-
-1. **Trên nhóm trạm không có giá trị `<= 0` trong suốt 62 ngày (`120 / 170` trạm sạch):** Tính phân vị cực trị dưới `1%` (`P1` — mức ngưỡng mà `99%` quan sát thông thường đều vượt qua) cho ban ngày (`06:00–22:00`) và ban đêm (`22:00–06:00`). Kết quả: **`P1_day = 69.0`** và **`P1_night = 16.0` xe/5 phút**.
-
-2. **Trên nhóm trạm còn lại có xuất hiện `0.0` (`50 / 170` trạm):** Lọc riêng các chuỗi `0.0` xảy ra hoàn toàn vào ban đêm với lưu lượng bước liền kề ở mức thấp (`≤ 16.0` xe/5 phút), tính phân vị `95%` (`P95`) độ dài chuỗi. Kết quả: **`P95_dur = 6` bước (`30` phút)**.
-
-> **Nhận xét (Bộ 4 tiêu chí nhận diện lỗi mất tín hiệu):**
->
-> Từ hai ngưỡng thực nghiệm độc lập trên, một quan sát hoặc chuỗi `<= 0` bị gán nhãn là **lỗi cảm biến** nếu vi phạm ít nhất một trong 4 điều kiện:
->
-> 1. Độ dài chuỗi liên tiếp lớn hơn **`6` bước (`30` phút)**;
->
-> 2. Mất đồng bộ giữa hai kênh `Lưu lượng` và `Độ chiếm dụng` (một biến `<= 0` nhưng biến còn lại `> 0`);
->
-> 3. Xuất hiện vào khung giờ ban ngày (`06:00–22:00`) với lưu lượng bước liền kề ≥ `16.0` xe/5 phút;
->
-> 4. Sụt thẳng về `0.0` từ mức lưu lượng nền ban ngày ≥ `69.0` xe/5 phút.
->
-> **Câu hỏi nghi vấn tiếp theo:**
->
-> Khi áp dụng 4 điều kiện phân loại này lên toàn bộ `PEMS08` và `PEMS04`, có bao nhiêu điểm `0.0` thực sự là lỗi cảm biến cần phục hồi và đoạn mất tín hiệu dài nhất kéo dài bao lâu?
-
-Biểu đồ ngưỡng thực nghiệm: [`nb02_empirical_thresholds.png`](../outputs/figures/nb02_empirical_thresholds.png)
+* **Tệp nguồn:** [`02_Data_Cleaning_and_Interpolation.ipynb`](../notebooks/02_Data_Cleaning_and_Interpolation.ipynb) · Mô-đun tái sử dụng: [`src/cleaning.py`](../src/cleaning.py).
+* **Dữ liệu đầu ra đã lưu:** `datasets/cleaned/PEMS08_clean.npz` và `datasets/cleaned/PEMS04_clean.npz` *(kèm mặt nạ lỗi `fault_mask_3ch`, nằm trong `datasets/` được `.gitignore` bỏ qua khi đẩy Git)*.
+* **Mục tiêu:** Áp dụng thống nhất trọn vẹn quy trình chẩn đoán 4 chỉ số ngày ($S_1 \dots S_4$) và phục hồi bằng hồi quy tuyến tính cặp trạm lân cận của **Chen et al. (*Transportation Research Record*, 2003)** nhằm làm sạch hoàn toàn cả lỗi mất tín hiệu `0.0` lẫn lỗi cảm biến đóng băng khác `0.0` trên hai bộ dữ liệu `PEMS08` và `PEMS04`.
 
 ---
 
-## 2. Kiểm toán & Phân loại các Điểm `0.0` trên `PEMS08` và `PEMS04`
+## 1. Chẩn đoán Lỗi Cảm biến theo 4 Chỉ số Ngày ($S_1 \dots S_4$) của Chen et al. (2003)
 
-| Bộ dữ liệu | Tổng điểm `<= 0` | Đường vắng hợp lệ *(Giữ nguyên)* | Lỗi cảm biến *(Cần nội suy)* | Số trạm bị lỗi | Đoạn lỗi dài tối đa |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **`PEMS08`** | 10.560 | **7.583 (`71,8%`)** | **2.977 (`28,2%`)** | `39 / 170` trạm | **400 bước (`~33,3` giờ)** |
-| **`PEMS04`** | 83.065 | **28.120 (`33,9%`)** | **54.945 (`66,1%`)** | `157 / 307` trạm | **408 bước (`34,0` giờ)** |
+Áp dụng thuật toán thống kê hàng ngày (*Daily Statistics Algorithm*) của Chen et al. (2003) trên toàn bộ `10.540` trạm–ngày của `PEMS08` (`62` ngày × `170` trạm) và `18.113` trạm–ngày của `PEMS04` (`59` ngày × `307` trạm):
 
-> **Nhận xét (Sự khác biệt rõ rệt giữa hai tập dữ liệu):**
->
-> * Trên `PEMS08`, phần lớn các giá trị `0.0` (`71,8%`) là trạng thái đường vắng ban đêm hợp lệ cần giữ nguyên để bảo toàn phân phối gốc. Ngược lại, `PEMS04` có tới `66,1%` (`54.945` điểm) là lỗi mất tín hiệu cảm biến.
->
-> * Cả hai bộ dữ liệu đều xuất hiện các đoạn đứt tín hiệu kéo dài tới **hơn 33 giờ (`400–408` bước)** — nơi nội suy đường thẳng sẽ làm mất hoàn toàn nhịp cao điểm sáng/chiều.
->
-> **Câu hỏi nghi vấn tiếp theo:**
->
-> Trên các đoạn mất dài hàng giờ hoặc hàng ngày, phương pháp nào vừa dự đoán đúng mức lưu lượng/độ chiếm dụng theo khung giờ, vừa khôi phục được biến thiên thực từng 5 phút mà không chèn thêm nhiễu giả?
+| Bộ dữ liệu | Tổng trạm–ngày | Ngày có $S_1 > 0$ | Ngày chết hẳn ($S_1 = 288$) | Điểm lệch pha $S_2$ | Điểm $S_3$ ($\text{Occ} \ge 0,70$) | $S_4$ Trung vị (`bit`) | $S_4$ Phân vị `P1` (`bit`) | Ngày đóng băng $S_4 = 0$ | Ngày $S_4 < 2,0$ `bit` |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`PEMS08`** | 10.540 | 763 | 1 | 0 | 27 | 4,075 | 1,975 | 1 | 112 |
+| **`PEMS04`** | 18.113 | 2.115 | 6 | 151 | 7 | 4,032 | 2,528 | **10** | 81 |
 
-Biểu đồ kiểm toán lỗi: [`nb02_anomaly_audit.png`](../outputs/figures/nb02_anomaly_audit.png)
+> **Nhận xét (Phát hiện quan trọng từ chỉ số $S_4$ — Entropy ngày):**
+>
+> * Trên `PEMS04`, số trạm–ngày có $S_4 = 0$ (đứng hình hoàn toàn 24 giờ) lên tới `10` ngày dù chỉ có `6` ngày chết ở `0.0` ($S_1 = 288$) — chứng minh tồn tại **`4` ngày đóng băng trọn 24 giờ tại một hằng số khác `0.0`** (điển hình `N164` đứng hình liên tiếp `306` bước = `25,5 giờ` trên cả 3 kênh `Flow`, `Occ`, `Speed`).
+>
+> * Trên `PEMS08`, $S_4$ cũng phát hiện nhiều đoạn cảm biến đóng băng hằng số khác `0.0` như `N107` đứng hình `101` bước (`8,4 giờ`) cả 3 kênh — dạng lỗi bị bỏ sót hoàn toàn nếu chỉ lọc giá trị `0.0`.
+
+Biểu đồ chẩn đoán 4 chỉ số và ca thực tế: [`nb02_chen2003_diagnostics.png`](../outputs/figures/nb02_chen2003_diagnostics.png)
 
 ---
 
-## 3. Thực nghiệm Nội suy & Xác định Điểm Đảo chiều `L*`
+## 2. Hiệu chuẩn Ngưỡng Thực nghiệm & Tách lọc Mặt nạ Lỗi 3 Kênh ($\mathbf{M}_{\text{fault}}$)
 
-### 3.1. Thử nghiệm khôi phục phần dư trên đoạn mất dài (Che khuất 6 giờ = `72` bước trên `20` trạm sạch `PEMS08`)
+Hiệu chuẩn ngưỡng `P1_day`, `P1_night` riêng trên nhóm trạm hoàn toàn không có `0.0` của từng bản đồ và `P95_dur` trên các chuỗi đêm lưu lượng thấp, tách rạch ròi đường vắng ban đêm hợp lệ khỏi **Lỗi Loại A (mất xung `0.0`, $S_1/S_2$)** và **Lỗi Loại B (đóng băng hằng số dương $\ge 12$ bước = `1 giờ`, $S_4$)**:
 
-Thay vì chỉ điền đường trung vị chu kỳ ngày (`Daily Profile` — làm phẳng mọi dao động), nghiên cứu thử nghiệm 4 chiến lược kết hợp:
+| Bộ dữ liệu | Trạm sạch chuẩn | `P1_day` / `P1_night` | `P95_dur` | Đường vắng đêm *(Giữ)* | Lỗi Loại A — `0.0` ($S_1/S_2$) | Lỗi Loại B — Đóng băng ($S_4$) | Tổng lỗi `Flow/Occ` | Lỗi `Speed` đóng băng | Đoạn lỗi dài nhất |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`PEMS08`** | `120/170` | `69 / 16` | `6` bước (`30p`) | 7.583 | **2.977** (`39` trạm) | **751** (`10` trạm) | **3.728** (`0,123%`) | **2.211** (`0,073%`) | `0.0`: `400`b (`33,3h`, `N30`) · `S4`: `101`b (`8,4h`, `N107`) |
+| **`PEMS04`** | `138/307` | `53 / 11` | `19` bước (`95p`) | 47.689 | **35.376** (`158` trạm) | **12.664** (`19` trạm) | **48.040** (`0,921%`) | **37.361** (`0,716%`) | `0.0`: `408`b (`34,0h`, `N126`) · `S4`: `354`b (`29,5h`, `N185`) |
 
-| Phương pháp thử nghiệm | `MAE` | `RMSE` | Tương quan (`r`) | Độ lệch chuẩn sai phân (`Step-diff Std`) | Đánh giá |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **`Ground Truth` (Gốc đối chiếu)** | 0,00 | 0,00 | 1,0000 | 32,25 | Chuẩn thực tế cần tiệm cận |
-| **`Daily Profile` (Trung vị theo giờ)** | 26,34 | 39,83 | 0,9606 | 10,29 | Mất phần lớn dao động từng 5 phút |
-| **`Profile + AR(1) Noise`** | 50,73 | 70,69 | 0,8890 | 39,02 | Sai số điểm tăng gần gấp đôi vì nhiễu giả |
-| **`Profile + Spatial Mean`** *(Chọn)* | **23,45** | **33,47** | **0,9718** | **20,41** | Tốt nhất cả về độ chính xác lẫn phục hồi dao động |
-| **`Profile + Spatial Ridge`** | 25,02 | 35,72 | 0,9680 | 21,15 | Kém hơn nhẹ do đa cộng tuyến nút lân cận |
-
-### 3.2. Quét độ dài đoạn mất `L = 1..72` bước (`5 – 360` phút) để tìm điểm đảo chiều `L*`
-
-| Độ dài đoạn (`L`) | Thời gian | `Linear MAE` | `Daily Profile MAE` | `Profile + Spatial Mean MAE` | Phương pháp tốt hơn |
-| :---: | :---: | :---: | :---: | :---: | :--- |
-| `1` bước | `5 phút` | **18,61** | 26,14 | 21,62 | `Linear` |
-| `2` bước | `10 phút` | **16,90** | 26,43 | 24,85 | `Linear` |
-| `6` bước | `30 phút` | **20,60** | 26,29 | 25,32 | `Linear` |
-| `12` bước | `60 phút` | **24,97** | 28,74 | 26,56 | `Linear` |
-| **`18` bước (`L*`)** | **`90 phút`** | **23,73** | 29,02 | 26,41 | `Linear` *(Giới hạn trên)* |
-| `24` bước | `120 phút` | 25,16 | 28,04 | **24,25** | `Profile + Spatial Mean` |
-| `36` bước | `180 phút` | 29,61 | 27,32 | **24,82** | `Profile + Spatial Mean` |
-| `72` bước | `360 phút` | 57,91 | 26,34 | **23,45** | `Profile + Spatial Mean` |
-
-> **Nhận xét (Chiến lược nội suy kết hợp `Hybrid`):**
->
-> * Trong phạm vi **`L ≤ 18` bước (`≤ 90` phút)**, nội suy tuyến tính (`Linear`) giữ sai số thấp nhất (`MAE = 16,90–24,97`) nhờ bám trực tiếp hai đầu mút thực tế ngay tại trạm đó.
->
-> * Từ **`L ≥ 24` bước (`≥ 120` phút)** trở đi, sai số của `Linear` phình nhanh lên `25,16 → 57,91`, trong khi `Profile + Spatial Mean` đảo chiều vượt lên dẫn đầu ổn định quanh `23,45–24,92`. Do đó, điểm **`L* = 18` bước (`90` phút)** được chọn làm ngưỡng chuyển đổi cho chiến lược **Hybrid**.
->
-> **Câu hỏi nghi vấn tiếp theo:**
->
-> Sau khi áp dụng chiến lược Hybrid lên toàn bộ đoạn lỗi thực tế của `PEMS08` và `PEMS04`, bộ dữ liệu sạch có triệt tiêu hoàn toàn điểm lỗi mà vẫn giữ nguyên phân phối thống kê ban đầu hay không?
-
-Biểu đồ đối chiếu nội suy: [`nb02_interpolation_and_residual_models.png`](../outputs/figures/nb02_interpolation_and_residual_models.png)
+Biểu đồ phân tách lỗi và phân bố độ dài đoạn mất: [`nb02_fault_mask_audit.png`](../outputs/figures/nb02_fault_mask_audit.png)
 
 ---
 
-## 4. Kết quả Áp dụng Cuối cùng & Bảo toàn Phân phối
+## 3. Kiểm chứng Có Kiểm soát Thuật toán Hồi quy Không gian Chen et al. (2003)
 
-| Bộ dữ liệu | Biến phục hồi | TB Trước | TB Sau | Std Trước | Std Sau | `Step-diff Std Sau` | Số lỗi còn lại |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`PEMS08`** | Lưu lượng | 230,681 | 230,766 | 146,217 | 146,155 | 25,418 | **0** |
-| **`PEMS08`** | Độ chiếm dụng | 0,065 | 0,065 | 0,046 | 0,046 | 0,012 | **0** |
-| **`PEMS04`** | Lưu lượng | 211,701 | 212,249 | 158,068 | 157,871 | 33,970 | **0** |
-| **`PEMS04`** | Độ chiếm dụng | 0,053 | 0,053 | 0,049 | 0,049 | 0,015 | **0** |
+Với mỗi trạm lỗi $i$, khớp mô hình hồi quy tuyến tính cặp $\hat{x}_i(t) = \hat{a}_{ij} x_j(t) + \hat{b}_{ij}$ theo tối đa $K = 5$ trạm lân cận tương quan cao nhất (ưu tiên lân cận `1–2 hop` trên đồ thị cao tốc) trên các mốc cùng sạch, rồi tổ hợp có trọng số theo $R^2_{ij}$ với chặn dưới dương $x_{i,\min}^{+}$ từ phân vị `P1` dương của trạm $i$.
 
-* **Chốt tham số bàn giao từ Bước 02:** `P1_day = 69.0`, `P1_night = 16.0`, `P95_dur = 6` bước (`30 phút`), điểm đảo chiều Hybrid **`L* = 18` bước (`90 phút`)** dùng `Profile + Spatial Mean` cho đoạn mất dài.
-* Hai tệp dữ liệu sạch `datasets/cleaned/PEMS08_clean.npz` và `datasets/cleaned/PEMS04_clean.npz` giữ trung bình và độ lệch chuẩn gần như trùng khít bản gốc và không còn bất kỳ điểm lỗi cảm biến nào (`0` lỗi tồn đọng).
+Kết quả kiểm thử có kiểm soát (`0%` rò rỉ dữ liệu, `SEED = 42`) trên quần thể trạm hoàn toàn sạch của `PEMS08` (`126/170` trạm) và `PEMS04` (`135/307` trạm):
 
-### Câu hỏi nghi vấn chuyển sang Bước 03
-> *Khi đã có chuỗi dữ liệu sạch không còn lỗi cảm biến, hệ thống giao thông vận hành theo nhịp điệu ngày – tuần ra sao? Ranh giới vật lý đa biến nào phân tách trạng thái thông thoáng với tắc nghẽn thực sự, ùn tắc có tập trung ở một nhóm trạm cố định hay không, và liệu có dấu hiệu tiền tắc nghẽn nào xuất hiện trước lúc kẹt xe?*
+| Bộ dữ liệu | Chế độ che khuất | Số điểm kiểm thử | `Flow MAE` | `Flow RMSE` | `Flow r` | `VolRat Flow` | `Occ MAE` | `Occ r` | `Speed MAE` (`mph`) | `Speed r` |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`PEMS08`** | Ngắn (`30 phút`, `L = 6`) | 540 | 21,74 | 37,16 | 0,9480 | 0,52 | 0,00735 | 0,9396 | 1,36 | 0,7517 |
+| **`PEMS08`** | Trung bình (`2 giờ`, `L = 24`) | 1.200 | 23,86 | 38,93 | 0,9672 | 0,47 | 0,01183 | 0,9007 | 2,18 | 0,8078 |
+| **`PEMS08`** | Dài (`6 giờ`, `L = 72`) | 2.880 | **24,95** | **36,87** | **0,9711** | **0,52** | 0,01523 | 0,8754 | 2,87 | 0,7870 |
+| **`PEMS04`** | Ngắn (`30 phút`, `L = 6`) | 540 | 28,47 | 52,17 | 0,9384 | 0,39 | 0,00783 | 0,9144 | 1,80 | 0,7505 |
+| **`PEMS04`** | Trung bình (`2 giờ`, `L = 24`) | 1.200 | 36,03 | 58,40 | 0,9364 | 0,46 | 0,01428 | 0,7509 | 2,76 | 0,6744 |
+| **`PEMS04`** | Dài (`6 giờ`, `L = 72`) | 2.880 | **23,98** | **35,08** | **0,9671** | **0,38** | 0,01343 | 0,7883 | 2,69 | 0,7919 |
+
+> **Nhận xét:**
+>
+> * Thuật toán Chen et al. (2003) giữ độ ổn định rất cao ngay cả khi đoạn mất kéo dài gấp `12` lần từ `30 phút` lên `6 giờ` (`Flow r = 0,9711` trên `PEMS08` và `0,9671` trên `PEMS04`), đồng thời bảo toàn được `38%–52%` biên độ dao động 5 phút (`VolRat`) nhờ bám sát biến thiên thực từ các cảm biến lân cận.
+
+Biểu đồ đối chiếu phục hồi 3 biến: [`nb02_chen2003_imputation_eval.png`](../outputs/figures/nb02_chen2003_imputation_eval.png)
+
+---
+
+## 4. Kết quả Áp dụng Chính thức & Bảo toàn Phân phối
+
+Tỷ lệ điểm lỗi được phục hồi trực tiếp từ hồi quy không gian cặp lân cận đạt **`96,5%`** trên `PEMS08` (trung vị $R^2 = 0,5862$) và **`97,8%`** trên `PEMS04` (trung vị $R^2 = 0,6447$). Kiểm toán hậu làm sạch xác nhận **`0` lỗi tồn đọng** ở tất cả các kênh:
+
+| Bộ dữ liệu | Biến đo lường | TB Trước | TB Sau | Std Trước | Std Sau | `Step-diff Std` Trước | `Step-diff Std` Sau | Lỗi tồn đọng |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`PEMS08`** | Lưu lượng (`Flow`) | 230,6807 | 230,8092 | 146,2169 | 146,1292 | 25,7801 | 25,4767 | **0** |
+| **`PEMS08`** | Độ chiếm dụng (`Occ`) | 0,0651 | 0,0651 | 0,0459 | 0,0459 | 0,0125 | 0,0125 | **0** |
+| **`PEMS08`** | Vận tốc (`Speed`) | 63,7630 | 63,7633 | 6,6520 | 6,6499 | 1,4963 | 1,4969 | **0** |
+| **`PEMS04`** | Lưu lượng (`Flow`) | 211,7008 | 212,4267 | 158,0684 | 157,7368 | 34,1051 | 34,0147 | **0** |
+| **`PEMS04`** | Độ chiếm dụng (`Occ`) | 0,0528 | 0,0530 | 0,0495 | 0,0494 | 0,0149 | 0,0149 | **0** |
+| **`PEMS04`** | Vận tốc (`Speed`) | 63,4706 | 63,4563 | 8,3557 | 8,3520 | 1,7850 | 1,7864 | **0** |
+
+Biểu đồ kiểm chứng trước–sau làm sạch: [`nb02_before_after_verification.png`](../outputs/figures/nb02_before_after_verification.png)
+
+### Câu hỏi nghi vấn chuyển sang Bước 03 (`RQ1`)
+> *Trên bộ dữ liệu sạch hoàn chỉnh của `PEMS08` (trong khi giữ `PEMS04` độc lập hoàn toàn cho kiểm chứng chéo ở `NB05`), làm thế nào xác định trạng thái tắc nghẽn trực tiếp từ Biểu đồ cơ bản, trích xuất và kiểm chứng hệ chỉ báo tiền tắc nghẽn trên cửa sổ `60 phút`, và đánh giá vai trò của cấu trúc đồ thị mạng lưới (tĩnh và động)?*
 
 **Tiếp theo:** [`03_EDA_and_Bottleneck_Report.md`](./03_EDA_and_Bottleneck_Report.md)
