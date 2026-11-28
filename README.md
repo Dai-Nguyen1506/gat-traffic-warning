@@ -2,7 +2,7 @@
 
 **Tín hiệu Tiền tắc nghẽn Hướng Vật lý cho Bài toán Dự báo Điểm nghẽn Cao tốc bằng Mạng Chú ý Đồ thị**
 
-Dự án nghiên cứu cuối kỳ môn *Data Visualization & Analytics* (bài báo chuẩn IEEE $\le 3.000$ từ) trên hai mạng lưới cảm biến cao tốc Caltrans PeMS (`PEMS08` làm tập nghiên cứu chính và `PEMS04` giữ độc lập hoàn toàn cho bước kiểm chứng chéo cuối cùng `NB05`). Chi tiết định hướng xem tại [`docs/plan.md`](./docs/plan.md) và tổng quan 35 bài báo tại [`docs/literature_review.md`](./docs/literature_review.md).
+Dự án nghiên cứu cuối kỳ môn *Data Visualization & Analytics* (bài báo chuẩn IEEE $\le 3.000$ từ) trên hai mạng lưới cảm biến cao tốc Caltrans PeMS (`PEMS08` làm tập nghiên cứu chính và `PEMS04` giữ độc lập hoàn toàn cho bước kiểm chứng chéo cuối cùng `NB05`). Chi tiết định hướng xem tại [`docs/plan.md`](./docs/plan.md) và tổng quan 22 tài liệu tham khảo chuẩn IEEE tại [`docs/literature_review.md`](./docs/literature_review.md).
 
 ---
 
@@ -24,7 +24,7 @@ Dự án nghiên cứu cuối kỳ môn *Data Visualization & Analytics* (bài b
 * **Công thức tự tính ngưỡng từ Biểu đồ cơ bản (`src/bottlenecks.py` — không chép cứng hằng số):**
   * $v_{\text{ff}} = \text{median}(v \mid o < 0{,}05)$, $v_{\text{cong}} = 0{,}60\,v_{\text{ff}}$ (**FHWA 23 CFR Part 490**), $v_{\text{sync}} = 0{,}80\,v_{\text{ff}}$, và $o_{\text{sat}}$ là điểm sớm nhất trên nhánh đi lên đạt $90\%$ đỉnh công suất $Q_{\max}$.
   * **Tắc thực ($C = 1$):** $(v < v_{\text{cong}}) \land (o \ge o_{\text{sat}})$; **Pha chuyển tiếp (*Synchronized*):** chưa tắc nhưng $(v < v_{\text{sync}}) \lor (o \ge o_{\text{sat}})$.
-* **Bộ `7` chỉ báo tiền tắc nghẽn nhân quả (`H = 12` = `60 phút`):** Dao động khử dốc (`occ_rstd, spd_rstd, flow_rstd`) + Liên kết đa biến (`occ_spd_corr, flow_occ_decouple` — *Chattopadhyay & Gupta, 2026*) + Độ dốc có dấu (`occ_slope, spd_slope`).
+* **Bộ `14` đặc trưng cục bộ (`H = 12` = `60 phút`):** `3` biến gốc (`Flow, Occ, Speed`) + `7` chỉ báo tiền tắc nghẽn nhân quả (Dao động khử dốc `occ_rstd, spd_rstd, flow_rstd`, Liên kết đa biến `occ_spd_corr, flow_occ_decouple` — *Chattopadhyay & Gupta, 2026*, Độ dốc có dấu `occ_slope, spd_slope`) + `4` chu kỳ thời gian `STID` (`tod_sin, tod_cos, dow_sin, dow_cos` — *Shao et al., 2022*).
 
 ---
 

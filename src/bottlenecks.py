@@ -333,11 +333,21 @@ def evaluate_precongestion_signals(
         for fi, fn in enumerate(CSD_FEATURE_NAMES):
             curves[fn].append(float(np.mean([csd[t0 + off, u, fi] for t0, u in fresh_on])))
 
-    # 2. Univariate AUC & Risk Ratio (dt = lead_univar)
+    # 2. Discrimination power (ROC-AUC & Top-10% Risk Ratio at dt = lead_univar) across all 4 groups
     m_clean = ~cg_past[window : T - lead_univar]
     m_fast = m_clean & (spd[window : T - lead_univar] >= 55.0)
     y_c = is_congested[window + lead_univar :][m_clean].astype(int)
     y_f = is_congested[window + lead_univar :][m_fast].astype(int)
+
+    grp_map = {
+        "occ_rstd": "Nhóm 1 (Dao động)",
+        "spd_rstd": "Nhóm 1 (Dao động)",
+        "flow_rstd": "Nhóm 1 (Dao động)",
+        "occ_spd_corr": "Nhóm 2 (Liên kết)",
+        "flow_occ_decouple": "Nhóm 2 (Liên kết)",
+        "occ_slope": "Nhóm 3 (Độ dốc)",
+        "spd_slope": "Nhóm 3 (Độ dốc)",
+    }
 
     csd_rows = []
     for fi, fn in enumerate(CSD_FEATURE_NAMES):
@@ -351,9 +361,10 @@ def evaluate_precongestion_signals(
         _, pv = mannwhitneyu(vc[y_c == 1], vc[y_c == 0], alternative="two-sided")
         mp, mn = float(np.median(vc[y_c == 1])), float(np.median(vc[y_c == 0]))
         csd_rows.append({
-            "Chỉ báo (H = 60p)": fn,
-            "Trung vị Sắp tắc": round(mp, 4),
-            "Trung vị Thông": round(mn, 4),
+            "Nhóm": grp_map[fn],
+            "Chỉ báo": fn,
+            "Trung vị Sắp tắc": f"{mp:.4f}",
+            "Trung vị Thông": f"{mn:.4f}",
             "Hệ số tăng": f"{mp / mn:.2f}x" if (mn > 1e-5 and mp > 0) else "Đổi dấu",
             "AUC (Thông sạch 60p)": round(auc_c, 4),
             "RR Top 10%": f"{rr_c:.2f}x",
@@ -361,39 +372,72 @@ def evaluate_precongestion_signals(
             "p (Mann–Whitney)": "< 1e-300" if pv == 0.0 else f"{pv:.2e}",
         })
 
-    # 3. Stepwise Added-Value LRT (60/20/20): Raw(3) -> +7 Signals(10) -> +4 STID Time(14)
+    # Group 4 (STID cyclical pairs): out-of-sample 2-channel score on 60/20/20 validation split
     t_tr, t_va = int(T * 0.60), int(T * 0.80)
+    m_tr_u = ~cg_past[window : t_tr - lead_univar]
+    m_va_u = ~cg_past[t_tr : t_va - lead_univar]
+    m_vaf_u = m_va_u & (spd[t_tr : t_va - lead_univar] >= 55.0)
+    y_tr_u = is_congested[window + lead_univar : t_tr][m_tr_u].astype(int)
+    y_va_u = is_congested[t_tr + lead_univar : t_va][m_va_u].astype(int)
+    y_vaf_u = is_congested[t_tr + lead_univar : t_va][m_vaf_u].astype(int)
+
+    for nm_t, sl_t, tag_t in [
+        ("tod (sin,cos)", slice(0, 2), "Chu kỳ 24h"),
+        ("dow (sin,cos)", slice(2, 4), "Chu kỳ 7 ngày"),
+    ]:
+        clf_t = LogisticRegression(max_iter=500, random_state=seed).fit(time4[window : t_tr - lead_univar, :, sl_t][m_tr_u], y_tr_u)
+        sc_va = clf_t.predict_proba(time4[t_tr : t_va - lead_univar, :, sl_t][m_va_u])[:, 1]
+        sc_vaf = clf_t.predict_proba(time4[t_tr : t_va - lead_univar, :, sl_t][m_vaf_u])[:, 1]
+        auc_c, auc_f = float(roc_auc_score(y_va_u, sc_va)), float(roc_auc_score(y_vaf_u, sc_vaf))
+        q90 = float(np.percentile(sc_va, 90))
+        rr_c = float(y_va_u[sc_va >= q90].mean() / max(y_va_u[sc_va < q90].mean(), 1e-9))
+        _, pv = mannwhitneyu(sc_va[y_va_u == 1], sc_va[y_va_u == 0], alternative="two-sided")
+        csd_rows.append({
+            "Nhóm": "Nhóm 4 (STID)",
+            "Chỉ báo": nm_t,
+            "Trung vị Sắp tắc": "—",
+            "Trung vị Thông": "—",
+            "Hệ số tăng": tag_t,
+            "AUC (Thông sạch 60p)": round(auc_c, 4),
+            "RR Top 10%": f"{rr_c:.2f}x",
+            "AUC (Speed ≥ 55 mph)": round(auc_f, 4),
+            "p (Mann–Whitney)": "< 1e-300" if pv == 0.0 else f"{pv:.2e}",
+        })
+
+    # 3. Per-Group & Combined Added-Value LRT (60/20/20): Raw(3) vs each of 4 groups vs All 4 Combined (14)
     lrt_rows = []
     for lead in [1, 3, 6]:
-        def _sl(a, b):
-            fn_m = ~cg_past[a:b]
-            yy = is_congested[a + lead : b + lead][fn_m].astype(int)
-            xr = data[a:b][fn_m]
-            x10 = np.hstack([xr, csd[a:b][fn_m]])
-            x14 = np.hstack([x10, time4[a:b][fn_m]])
-            return xr, x10, x14, yy
-
-        Xr_tr, X10_tr, X14_tr, y_tr = _sl(window, t_tr - lead)
-        Xr_va, X10_va, X14_va, y_va = _sl(t_tr, t_va - lead)
+        m_tr = ~cg_past[window : t_tr - lead]
+        m_va = ~cg_past[t_tr : t_va - lead]
+        y_tr = is_congested[window + lead : t_tr][m_tr].astype(int)
+        y_va = is_congested[t_tr + lead : t_va][m_va].astype(int)
 
         def _fe(Xtr, Xva):
             sc = StandardScaler().fit(Xtr)
             pr = LogisticRegression(max_iter=500, random_state=seed).fit(sc.transform(Xtr), y_tr).predict_proba(sc.transform(Xva))[:, 1]
             return float(average_precision_score(y_va, pr)), float(log_loss(y_va, pr))
 
-        ap_r, ll_r = _fe(Xr_tr, Xr_va)
-        ap_10, ll_10 = _fe(X10_tr, X10_va)
-        ap_14, ll_14 = _fe(X14_tr, X14_va)
-        c2_7 = float(2.0 * len(y_va) * max(0.0, ll_r - ll_10))
-        c2_t = float(2.0 * len(y_va) * max(0.0, ll_10 - ll_14))
+        xr_tr, xr_va = data[window : t_tr - lead][m_tr], data[t_tr : t_va - lead][m_va]
+        ap_r, ll_r = _fe(xr_tr, xr_va)
+        ap_g1, _ = _fe(np.hstack([xr_tr, csd[window : t_tr - lead, :, 0:3][m_tr]]), np.hstack([xr_va, csd[t_tr : t_va - lead, :, 0:3][m_va]]))
+        ap_g2, _ = _fe(np.hstack([xr_tr, csd[window : t_tr - lead, :, 3:5][m_tr]]), np.hstack([xr_va, csd[t_tr : t_va - lead, :, 3:5][m_va]]))
+        ap_g3, _ = _fe(np.hstack([xr_tr, csd[window : t_tr - lead, :, 5:7][m_tr]]), np.hstack([xr_va, csd[t_tr : t_va - lead, :, 5:7][m_va]]))
+        ap_g4, _ = _fe(np.hstack([xr_tr, time4[window : t_tr - lead][m_tr]]), np.hstack([xr_va, time4[t_tr : t_va - lead][m_va]]))
+        ap_14, ll_14 = _fe(
+            np.hstack([xr_tr, csd[window : t_tr - lead][m_tr], time4[window : t_tr - lead][m_tr]]),
+            np.hstack([xr_va, csd[t_tr : t_va - lead][m_va], time4[t_tr : t_va - lead][m_va]]),
+        )
+        c2_11 = float(2.0 * len(y_va) * max(0.0, ll_r - ll_14))
         lrt_rows.append({
             "Tầm cảnh báo (Δt)": f"{lead*5} phút",
             "Raw 3 biến": round(ap_r, 4),
-            "+7 Chỉ báo (10)": round(ap_10, 4),
-            "+4 Chu kỳ STID (14)": round(ap_14, 4),
-            "Tổng tăng PR-AUC (%)": f"{(ap_14 / ap_r - 1.0) * 100:+.2f}%",
-            "p (+7 Chỉ báo)": f"{float(chi2.sf(c2_7, df=7)):.2e}",
-            "p (+4 STID)": f"{float(chi2.sf(c2_t, df=4)):.2e}",
+            "+Nhóm 1 (Dao động)": round(ap_g1, 4),
+            "+Nhóm 2 (Liên kết)": round(ap_g2, 4),
+            "+Nhóm 3 (Độ dốc)": round(ap_g3, 4),
+            "+Nhóm 4 (STID)": round(ap_g4, 4),
+            "Gộp 4 nhóm (14)": round(ap_14, 4),
+            "Tăng PR-AUC (%)": f"{(ap_14 / ap_r - 1.0) * 100:+.2f}%",
+            "p (LRT df=11)": f"{float(chi2.sf(c2_11, df=11)):.2e}",
         })
 
     return {

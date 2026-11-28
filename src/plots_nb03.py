@@ -265,45 +265,181 @@ def plot_precongestion_trajectories(
     _save_and_show(fig, save_path)
 
 
+def plot_stid_time_cycles(
+    cg: np.ndarray,
+    hr_all: np.ndarray,
+    dow_all: np.ndarray,
+    time4: np.ndarray,
+    save_path: Path,
+) -> None:
+    """Hình 3b (2 × 2 dùng chung trục x): Trực quan hóa Nhóm 4 (STID — tod_sin/cos & dow_sin/cos) đối chiếu P(C=1) toàn mạng."""
+    from matplotlib.patches import Patch
+
+    fig = plt.figure(figsize=(15.2, 6.4))
+    gs = gridspec.GridSpec(2, 2, height_ratios=[1.28, 0.92], hspace=0.14, wspace=0.22)
+    ax_h_top = fig.add_subplot(gs[0, 0])
+    ax_h_bot = fig.add_subplot(gs[1, 0], sharex=ax_h_top)
+    ax_d_top = fig.add_subplot(gs[0, 1])
+    ax_d_bot = fig.add_subplot(gs[1, 1], sharex=ax_d_top)
+
+    hr_rate = np.array([cg[hr_all == h].mean() * 100.0 for h in range(24)])
+    tod_sin_h = np.array([time4[hr_all == h, 0, 0].mean() for h in range(24)])
+    tod_cos_h = np.array([time4[hr_all == h, 0, 1].mean() for h in range(24)])
+
+    dow_rate = np.array([cg[dow_all == d].mean() * 100.0 for d in range(7)])
+    dow_sin_d = np.array([time4[dow_all == d, 0, 2].mean() for d in range(7)])
+    dow_cos_d = np.array([time4[dow_all == d, 0, 3].mean() for d in range(7)])
+
+    h_am = int(np.argmax(hr_rate[6:11]) + 6)
+    h_pm = int(np.argmax(hr_rate[12:20]) + 12)
+    d_pk = int(np.argmax(dow_rate))
+
+    # --- Panel (A): 24h cycle ---
+    hrs = np.arange(24)
+    ax_h_top.grid(axis="y", alpha=0.65); ax_h_top.set_axisbelow(True)
+    bar_cols_h = [PAL["coral"] if (h in range(7, 10) or h in range(14, 19)) else "#94A3B8" for h in hrs]
+    ax_h_top.bar(hrs, hr_rate, width=0.72, color=bar_cols_h, alpha=0.86, edgecolor="white", lw=0.6)
+    for hx in (h_am, h_pm):
+        ax_h_top.axvline(hx, color=PAL["coral"], ls=":", lw=1.1, alpha=0.75)
+        ax_h_top.text(hx, hr_rate[hx] + 0.16, f"{hr_rate[hx]:.2f}%", ha="center", va="bottom", fontsize=8.3, fontweight="bold", color=PAL["coral"])
+    night_mean = float(hr_rate[:5].mean())
+    ax_h_top.annotate(
+        f"Đêm 00–04h:\nTB {night_mean:.2f}%",
+        xy=(2.0, max(hr_rate[2], 0.08)),
+        xytext=(2.3, hr_rate.max() * 0.56),
+        ha="center",
+        fontsize=8.2,
+        color=PAL["slate"],
+        bbox=dict(boxstyle="round,pad=0.25", fc="#F8FAFC", ec=PAL["grid"]),
+        arrowprops=dict(arrowstyle="->", color=PAL["slate"], lw=0.9),
+    )
+    ax_h_top.set_ylim(0, hr_rate.max() * 1.24)
+    ax_h_top.set_ylabel("Xác suất Tắc thực P(C=1) (%)")
+    ax_h_top.set_title("(A) Chu kỳ 24 giờ: P(C = 1) toàn mạng & tod_sin / tod_cos", fontweight="bold", fontsize=10.6, pad=8)
+    ax_h_top.legend(
+        handles=[Patch(facecolor=PAL["coral"], alpha=0.86, label="Cao điểm (07–09h, 14–18h)"), Patch(facecolor="#94A3B8", alpha=0.86, label="Khung giờ còn lại")],
+        frameon=False, loc="upper left", fontsize=8.0,
+    )
+    plt.setp(ax_h_top.get_xticklabels(), visible=False)
+
+    ax_h_bot.grid(axis="y", alpha=0.65); ax_h_bot.set_axisbelow(True)
+    ax_h_bot.axhline(0.0, color=PAL["muted"], ls=":", lw=0.9)
+    for hx in (h_am, h_pm):
+        ax_h_bot.axvline(hx, color=PAL["coral"], ls=":", lw=1.1, alpha=0.75)
+    ax_h_bot.plot(hrs, tod_sin_h, color=PAL["navy"], lw=2.2, marker="o", ms=3.2, label="tod_sin (sin 2πt / 24h)")
+    ax_h_bot.plot(hrs, tod_cos_h, color=PAL["teal"], lw=2.1, ls="--", marker="s", ms=3.0, label="tod_cos (cos 2πt / 24h)")
+    ax_h_bot.set_ylim(-1.22, 1.48); ax_h_bot.set_yticks([-1.0, 0.0, 1.0])
+    ax_h_bot.set_xlim(-0.7, 23.7); ax_h_bot.set_xticks(range(0, 24, 2), [f"{h:02d}h" for h in range(0, 24, 2)])
+    ax_h_bot.set_ylabel("STID [-1, +1]"); ax_h_bot.set_xlabel("Giờ trong ngày (khép kín chu kỳ 23h ↔ 00h không đứt gãy)")
+    ax_h_bot.legend(frameon=True, facecolor="white", framealpha=0.92, edgecolor=PAL["grid"], loc="upper center", ncol=2, fontsize=8.2)
+
+    # --- Panel (B): 7-day cycle ---
+    days = np.arange(7)
+    day_lbls = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"]
+    ax_d_top.grid(axis="y", alpha=0.65); ax_d_top.set_axisbelow(True)
+    bar_cols_d = [PAL["coral"] if d < 5 else "#94A3B8" for d in days]
+    ax_d_top.bar(days, dow_rate, width=0.56, color=bar_cols_d, alpha=0.86, edgecolor="white", lw=0.7)
+    ax_d_top.axvline(d_pk, color=PAL["coral"], ls=":", lw=1.1, alpha=0.75)
+    for d_i, val in enumerate(dow_rate):
+        ax_d_top.text(d_i, val + 0.08, f"{val:.2f}%", ha="center", va="bottom", fontsize=8.3, fontweight="bold", color=PAL["coral"] if d_i < 5 else PAL["slate"])
+    ax_d_top.set_ylim(0, dow_rate.max() * 1.26)
+    ax_d_top.set_ylabel("Xác suất Tắc thực P(C=1) (%)")
+    ax_d_top.set_title("(B) Chu kỳ 7 ngày: P(C = 1) theo thứ & dow_sin / dow_cos", fontweight="bold", fontsize=10.6, pad=8)
+    ax_d_top.legend(
+        handles=[Patch(facecolor=PAL["coral"], alpha=0.86, label="Ngày thường (T2–T6)"), Patch(facecolor="#94A3B8", alpha=0.86, label="Cuối tuần (T7–CN)")],
+        frameon=False, loc="upper right", fontsize=8.0,
+    )
+    plt.setp(ax_d_top.get_xticklabels(), visible=False)
+
+    ax_d_bot.grid(axis="y", alpha=0.65); ax_d_bot.set_axisbelow(True)
+    ax_d_bot.axhline(0.0, color=PAL["muted"], ls=":", lw=0.9)
+    ax_d_bot.axvline(d_pk, color=PAL["coral"], ls=":", lw=1.1, alpha=0.75)
+    ax_d_bot.plot(days, dow_sin_d, color=PAL["navy"], lw=2.2, marker="o", ms=4.5, label="dow_sin (sin 2πd / 7)")
+    ax_d_bot.plot(days, dow_cos_d, color=PAL["teal"], lw=2.1, ls="--", marker="s", ms=4.2, label="dow_cos (cos 2πd / 7)")
+    ax_d_bot.set_ylim(-1.22, 1.48); ax_d_bot.set_yticks([-1.0, 0.0, 1.0])
+    ax_d_bot.set_xlim(-0.55, 6.55); ax_d_bot.set_xticks(days, day_lbls, fontsize=8.8)
+    ax_d_bot.set_ylabel("STID [-1, +1]"); ax_d_bot.set_xlabel("Thứ trong tuần (khép kín Chủ nhật ↔ Thứ 2, tách hẳn cuối tuần)")
+    ax_d_bot.legend(frameon=True, facecolor="white", framealpha=0.92, edgecolor=PAL["grid"], loc="upper center", ncol=2, fontsize=8.2)
+
+    _save_and_show(fig, save_path)
+
+
 def plot_precongestion_validation(
     csd_df: pd.DataFrame,
     lrt_df: pd.DataFrame,
     save_path: Path,
 ) -> None:
-    """Hình 3b (1 × 2): So sánh ROC-AUC đơn biến của 7 chỉ báo & Giá trị cộng thêm PR-AUC (LRT)."""
-    fig, axes = plt.subplots(1, 2, figsize=(14.8, 5.0), gridspec_kw={"width_ratios": [1.18, 1.0]})
+    """Hình 3c (1 × 2): So sánh ROC-AUC của đủ 4 nhóm (9 mục) & Đóng góp từng nhóm + gộp đủ 14 đặc trưng (PR-AUC)."""
+    fig, axes = plt.subplots(1, 2, figsize=(16.0, 5.4), gridspec_kw={"width_ratios": [1.22, 1.15]})
 
+    # --- Panel (A): All 4 groups (9 items) side-by-side ---
     ax = axes[0]
     ax.grid(axis="y", alpha=0.65); ax.set_axisbelow(True)
-    x, w = np.arange(len(CSD_FEATURE_NAMES)), 0.36
+    n_items = len(csd_df)
+    x, w = np.arange(n_items), 0.36
     b1 = ax.bar(x - w / 2, csd_df["AUC (Thông sạch 60p)"], width=w, color=PAL["navy"], label="Toàn bộ điểm thông sạch 60p")
     b2 = ax.bar(x + w / 2, csd_df["AUC (Speed ≥ 55 mph)"], width=w, color=PAL["teal"], label="Đang chạy nhanh (Speed ≥ 55 mph)")
     for b in list(b1) + list(b2):
-        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.012, f"{b.get_height():.2f}", ha="center", va="bottom", fontsize=7.6, fontweight="bold")
+        ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.011, f"{b.get_height():.2f}", ha="center", va="bottom", fontsize=7.2, fontweight="bold")
     ax.axhline(0.5, color=PAL["muted"], ls="--", lw=1.0)
-    ax.set_xticks(x, ["occ\nrstd", "spd\nrstd", "flow\nrstd", "occ_spd\ncorr", "flow_occ\ndecouple", "occ\nslope", "spd\nslope"], fontsize=8.3)
-    ax.set_ylim(0.4, 1.09); ax.set_ylabel("ROC-AUC đơn biến (Δt = 15 phút)")
-    ax.set_title("(A) So sánh sức mạnh phân tách (ROC-AUC) của 7 chỉ báo", fontweight="bold")
-    ax.legend(frameon=False, loc="upper right", fontsize=8.4)
 
+    # Subtle group dividers and labels for Groups 1–4
+    for sep in (2.5, 4.5, 6.5):
+        ax.axvline(sep, color="#CBD5E1", ls="--", lw=1.0)
+    for cx, glbl in [(1.0, "Nhóm 1\nDao động"), (3.5, "Nhóm 2\nLiên kết"), (5.5, "Nhóm 3\nĐộ dốc"), (7.5, "Nhóm 4\nSTID")]:
+        ax.text(cx, 1.035, glbl, ha="center", va="bottom", fontsize=7.6, fontweight="bold", color=PAL["slate"])
+
+    x_lbls = [
+        "occ\nrstd", "spd\nrstd", "flow\nrstd",
+        "occ_spd\ncorr", "flow_occ\ndecouple",
+        "occ\nslope", "spd\nslope",
+        "tod\n(sin,cos)", "dow\n(sin,cos)",
+    ]
+    ax.set_xticks(x, x_lbls, fontsize=7.9)
+    ax.set_ylim(0.4, 1.19); ax.set_ylabel("ROC-AUC (Δt = 15 phút)")
+    ax.set_title("(A) Sức mạnh phân tách (ROC-AUC) của đủ 4 nhóm đặc trưng", fontweight="bold", fontsize=10.5, pad=8)
+    ax.legend(frameon=False, loc="upper right", bbox_to_anchor=(1.0, 0.99), fontsize=8.0)
+
+    # --- Panel (B): Raw(3) vs each of the 4 groups individually vs Combined All 4 (14) ---
     ax = axes[1]
     ax.grid(axis="y", alpha=0.65); ax.set_axisbelow(True)
-    x2, w2 = np.arange(len(lrt_df)), 0.25
-    vr = lrt_df["Raw 3 biến"].to_numpy()
-    v10 = lrt_df["+7 Chỉ báo (10)"].to_numpy()
-    v14 = lrt_df["+4 Chu kỳ STID (14)"].to_numpy()
-    ax.bar(x2 - w2, vr, width=w2, color="#CBD5E1", edgecolor="#94A3B8", lw=0.6, label="Chỉ 3 biến thô")
-    ax.bar(x2, v10, width=w2, color=PAL["blue"], label="+ 7 chỉ báo tiền tắc (10)")
-    ax.bar(x2 + w2, v14, width=w2, color=PAL["navy"], label="+ 4 chu kỳ STID (Chốt 14)")
-    for k in range(len(x2)):
-        ax.text(x2[k] - w2, vr[k] + 0.005, f"{vr[k]:.3f}", ha="center", va="bottom", fontsize=7.8, color=PAL["slate"])
-        ax.text(x2[k] + w2, v14[k] + 0.005, f"{v14[k]:.3f}\n({lrt_df['Tổng tăng PR-AUC (%)'].iloc[k]})", ha="center", va="bottom", fontsize=7.9, fontweight="bold", color=PAL["navy"])
-    ax.set_xticks(x2, [f"Δt = {l}\n(p_STID = {p})" for l, p in zip(lrt_df["Tầm cảnh báo (Δt)"], lrt_df["p (+4 STID)"])], fontsize=8.1)
-    ax.set_ylim(0, 0.335); ax.set_ylabel("Validation PR-AUC (chia 60/20/20)")
-    ax.set_title("(B) Giá trị cộng thêm từng bước: Raw → +7 Chỉ báo → +4 STID (14)", fontweight="bold")
-    ax.legend(frameon=False, loc="upper right", fontsize=8.0)
+    x2 = np.arange(len(lrt_df))
+    w2 = 0.132
+    series_cfg = [
+        ("Raw 3 biến", "#CBD5E1", "Raw 3 biến"),
+        ("+Nhóm 1 (Dao động)", PAL["blue"], "+ Nhóm 1 (Dao động)"),
+        ("+Nhóm 2 (Liên kết)", PAL["teal"], "+ Nhóm 2 (Liên kết)"),
+        ("+Nhóm 3 (Độ dốc)", PAL["amber"], "+ Nhóm 3 (Độ dốc)"),
+        ("+Nhóm 4 (STID)", "#7C6BA8", "+ Nhóm 4 (STID)"),
+        ("Gộp 4 nhóm (14)", PAL["navy"], "Gộp cả 4 nhóm (14)"),
+    ]
+    offsets = (np.arange(len(series_cfg)) - (len(series_cfg) - 1) / 2.0) * w2
+    for idx_s, (col_name, color, lbl) in enumerate(series_cfg):
+        vals = lrt_df[col_name].to_numpy()
+        edge = "#94A3B8" if idx_s == 0 else "white"
+        ax.bar(x2 + offsets[idx_s], vals, width=w2 * 0.94, color=color, edgecolor=edge, lw=0.5, label=lbl)
+        if idx_s == 0:
+            for k in range(len(x2)):
+                ax.text(x2[k] + offsets[idx_s], vals[k] + 0.005, f"{vals[k]:.3f}", ha="center", va="bottom", fontsize=7.2, color=PAL["slate"])
+        elif idx_s == len(series_cfg) - 1:
+            for k in range(len(x2)):
+                ax.text(
+                    x2[k] + offsets[idx_s],
+                    vals[k] + 0.005,
+                    f"{vals[k]:.3f}\n({lrt_df['Tăng PR-AUC (%)'].iloc[k]})",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7.5,
+                    fontweight="bold",
+                    color=PAL["navy"],
+                )
 
-    fig.tight_layout(w_pad=2.4)
+    ax.set_xticks(x2, [f"Δt = {l}\n(LRT p = {p})" for l, p in zip(lrt_df["Tầm cảnh báo (Δt)"], lrt_df["p (LRT df=11)"])], fontsize=8.2)
+    ax.set_ylim(0, 0.355); ax.set_ylabel("Validation PR-AUC (chia 60/20/20)")
+    ax.set_title("(B) Đóng góp từng nhóm & Tổ hợp gộp đủ 4 nhóm (14 đặc trưng)", fontweight="bold", fontsize=10.5, pad=8)
+    ax.legend(frameon=False, loc="upper right", ncol=2, fontsize=7.8)
+
+    fig.tight_layout(w_pad=2.2)
     _save_and_show(fig, save_path)
 
 

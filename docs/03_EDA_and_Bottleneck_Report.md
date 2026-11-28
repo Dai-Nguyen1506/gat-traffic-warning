@@ -2,7 +2,7 @@
 
 * **Tệp nguồn:** [`03_EDA_and_Bottleneck_Analysis.ipynb`](../notebooks/03_EDA_and_Bottleneck_Analysis.ipynb), mô-đun tính toán [`src/bottlenecks.py`](../src/bottlenecks.py) và mô-đun biểu đồ [`src/plots_nb03.py`](../src/plots_nb03.py)
 * **Dữ liệu đầu vào:** `datasets/cleaned/PEMS08_clean.npz` (`17.856 × 170 × 3`, `62` ngày từ `01/07` đến `31/08/2016`, `277` cạnh có hướng duy nhất, `0` lỗi tồn đọng từ Bước 02). Tập `PEMS04` giữ độc lập hoàn toàn cho bước kiểm chứng chéo cuối cùng (`NB05`).
-* **Tệp đầu ra bàn giao:** [`PEMS08_bottlenecks.csv`](../outputs/PEMS08_bottlenecks.csv), [`PEMS08_network.gexf`](../outputs/PEMS08_network.gexf) cùng `5` biểu đồ `300 DPI` tại `outputs/figures/nb03_*.png`.
+* **Tệp đầu ra bàn giao:** [`PEMS08_bottlenecks.csv`](../outputs/PEMS08_bottlenecks.csv), [`PEMS08_network.gexf`](../outputs/PEMS08_network.gexf) cùng `6` biểu đồ `300 DPI` tại `outputs/figures/nb03_*.png`.
 
 ---
 
@@ -51,20 +51,22 @@ Từ điều kiện tắc thực ở Phần 2, Phần 3 xác lập **Pha chuyể
 1. **Nhóm 1 — Dao động khử dốc (*Kerner, 2004*):** `occ_rstd`, `spd_rstd`, `flow_rstd`. Tại `t = 0`, `occ_rstd` và `spd_rstd` tăng vọt **`2,29× – 2,37×`** so với mốc `-60p`, còn `flow_rstd` chỉ tăng `1,12×`.
 2. **Nhóm 2 — Liên kết Đa biến (*Multivariate CSD* — Chattopadhyay & Gupta, *RSOS* 2026):** Kế thừa kết luận của bài báo rằng các chỉ báo đa biến vượt trội chỉ báo đơn biến, sử dụng 2 cặp tương quan chéo nhất quán theo Biểu đồ cơ bản: **`occ_spd_corr` (`-corr(Occ, Speed)`)** tăng từ **`+0,552 → +0,905`** (`AUC = 0,8490`, `≥55 mph: 0,7304`) và **`flow_occ_decouple` (`-corr(Flow, Occ)`)** bứt phá từ **`-0,648 → +0,135`** (`AUC = 0,8217`, `≥55 mph: 0,6439`).
 3. **Nhóm 3 — Độ dốc có dấu (*California / McMaster* & phần xu hướng từ bước khử dốc):** `occ_slope` và `spd_slope`. Trên trọn chu kỳ **`-60p → +90p`** của **`n = 3.199` ca mới sạch** (`48,4%` trong `6.611` ca trên `170` trạm), khi bước sang pha hồi phục (`t = +60p`) dù `occ_rstd` còn cao gấp **`2,41×`**, cặp độ dốc lập tức **đảo dấu đối xứng** (`spd_slope = +0,85 mph/5p`, `occ_slope = -0,0042/5p`) để chặn báo động giả.
-4. **Nhóm 4 — Chu kỳ Thời gian (*STID* — Shao et al., *CIKM* 2022):** `tod_sin, tod_cos, dow_sin, dow_cos` (`4` biến) mã hóa khung giờ cao điểm và ngày thường/cuối tuần — bổ sung tiếp ý nghĩa thống kê rất rõ ở tầm xa (`p = 1,56e-19` ở `30p`), hoàn thiện cơ sở định lượng cho trọn bộ **`14` đặc trưng cục bộ**.
+4. **Nhóm 4 — Chu kỳ Thời gian (*STID* — Shao et al., *CIKM* 2022):** `tod_sin, tod_cos, dow_sin, dow_cos` (`4` biến) mã hóa trơn không đứt gãy khung giờ cao điểm (`P(C = 1)` toàn mạng `170` trạm đạt đỉnh sáng `07h = 3,42%`, đỉnh chiều `17h = 7,18%` so với đêm `00–04h = 0,05%`) và chu kỳ tuần (`T2–T6` TB `2,38%`, cao nhất Thứ Sáu `3,07%`, gấp `2,7×` cuối tuần `0,87%`). Đánh giá ngang hàng trong bảng `ROC-AUC`, cặp `tod (sin,cos)` đạt **`0,6878`** (`≥55 mph: 0,6782`) và `dow (sin,cos)` đạt **`0,5635`** (`≥55 mph: 0,5618`) — đóng vai trò tiên nghiệm bối cảnh ổn định bổ trợ cho `3` nhóm cảm biến vật lý.
 
-### Đánh giá định lượng toàn mạng (`Δt = 15p` đơn biến & `LRT` từng bước trên chia `60 / 20 / 20`)
+### Đánh giá định lượng toàn mạng (`Δt = 15p` cho đủ `4` nhóm & `LRT` từng nhóm / gộp đủ `14` đặc trưng trên chia `60 / 20 / 20`)
 
-* **Sức mạnh đơn biến (`n = 2.928.641` điểm thông sạch 60p):** Toàn bộ `7` chỉ báo đều đạt mạnh và đồng đều (`AUC = 0,78–0,93`, $p < 10^{-300}$): `occ_rstd` **`0,9318`** (`RR 36,42×`, `≥55 mph: 0,8613`), `spd_rstd` **`0,9044`** (`25,67×`, `0,7983`), **`occ_spd_corr` `0,8490`** (`13,54×`, `0,7304`), **`flow_occ_decouple` `0,8217`** (`10,49×`, `0,6439`), `spd_slope` `0,8113`, `occ_slope` `0,8101`, `flow_rstd` `0,7784`.
-* **Giá trị cộng thêm từng bước `LRT` (`60 / 20 / 20`):**
+* **Sức mạnh phân tách `ROC-AUC` của đủ `4` nhóm (`Δt = 15p`):** `Nhóm 1` (`occ_rstd` **`0,9318`** / `≥55 mph: 0,8613`, `spd_rstd` **`0,9044`** / `0,7983`, `flow_rstd` `0,7784`), `Nhóm 2` (**`occ_spd_corr` `0,8490`** / `0,7304`, **`flow_occ_decouple` `0,8217`** / `0,6439`), `Nhóm 3` (`spd_slope` `0,8113`, `occ_slope` `0,8101`), và `Nhóm 4` (`tod (sin,cos)` `0,6878` / `0,6782`, `dow (sin,cos)` `0,5635` / `0,5618`).
+* **Đóng góp từng nhóm & tổ hợp gộp đủ `4` nhóm (`Val PR-AUC`, chia `60 / 20 / 20`):**
 
-| Tầm cảnh báo (`Δt`) | `Raw 3 biến` | `+7 Chỉ báo (10)` | **`+4 Chu kỳ STID (Chốt 14)`** | Tổng tăng `PR-AUC` (%) | `p` *(+7 Chỉ báo)* | `p` *(+4 STID)* |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`5 phút`** | 0,1888 | 0,2480 | **0,2486** | **`+31,66%`** | `3,20e-53` | `7,32e-06` |
-| **`15 phút`** | 0,1483 | 0,1797 | **0,1817** | **`+22,51%`** | `7,68e-129` | `6,28e-05` |
-| **`30 phút`** | 0,1168 | 0,1437 | **0,1448** | **`+23,99%`** | `1,04e-224` | `1,56e-19` |
+| Tầm cảnh báo (`Δt`) | `Raw 3 biến` | `+Nhóm 1` *(Dao động)* | `+Nhóm 2` *(Liên kết)* | `+Nhóm 3` *(Độ dốc)* | `+Nhóm 4` *(STID)* | **`Gộp 4 nhóm (14)`** | Tăng `PR-AUC` (%) | `p` *(LRT `df=11`)* |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`5 phút`** | 0,1888 | 0,2245 | 0,2156 | 0,2091 | 0,1832 | **0,2486** | **`+31,66%`** | **`2,70e-56`** |
+| **`15 phút`** | 0,1483 | 0,1689 | 0,1637 | 0,1612 | 0,1489 | **0,1817** | **`+22,51%`** | **`2,63e-130`** |
+| **`30 phút`** | 0,1168 | 0,1346 | 0,1261 | 0,1251 | 0,1168 | **0,1448** | **`+23,99%`** | **`8,85e-241`** |
 
-* **Biểu đồ minh họa:** [`nb03_precongestion_trajectories.png`](../outputs/figures/nb03_precongestion_trajectories.png) · [`nb03_precongestion_validation.png`](../outputs/figures/nb03_precongestion_validation.png)
+  *Lưu ý diễn giải Nhóm 4:* Nhóm 4 (`STID`) thấp hơn trong phép thử tuyến tính do là bối cảnh dùng chung cho cả `170` trạm (không tự định vị trạm điểm nghẽn) và `LogisticRegression` tuyến tính với cặp `(sin, cos)` chỉ khớp được một đỉnh sóng đơn thay vì hai đỉnh sáng–chiều (`07h`, `17h`) cùng tương tác `giờ × thứ`. Do đó chưa đủ cơ sở kết luận Nhóm 4 kém hơn trước khi thử nghiệm trên mô hình học sâu phi tuyến ở `NB04`, trong khi gộp đủ `4` nhóm (`14` đặc trưng) đã vượt trội mọi nhóm đơn lẻ.
+
+* **Biểu đồ minh họa:** [`nb03_precongestion_trajectories.png`](../outputs/figures/nb03_precongestion_trajectories.png) *(Nhóm 1–3)* · [`nb03_stid_time_cycles.png`](../outputs/figures/nb03_stid_time_cycles.png) *(Nhóm 4 `STID`)* · [`nb03_precongestion_validation.png`](../outputs/figures/nb03_precongestion_validation.png) *(So sánh `ROC-AUC` đủ `4` nhóm & `PR-AUC` từng nhóm / gộp `14` đặc trưng)*
 
 ---
 

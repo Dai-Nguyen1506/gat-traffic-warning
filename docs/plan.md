@@ -21,29 +21,33 @@ Tài liệu này chốt toàn bộ khung đề tài tối giản, sắc nét sau
 * **EN:** *How can freeway congestion states and pre-congestion volatility signals be identified directly from multi-variable sensor data?*
 * **VI:** *Làm thế nào xác định trạng thái tắc nghẽn và trích xuất các dấu hiệu dao động tiền tắc nghẽn trực tiếp từ dữ liệu cảm biến đa biến?*
 * **Nội dung cốt lõi (tối giản — đã bỏ Tầng 2, bỏ Pareto; giữ chứng minh loại trừ `Flow` & `Betweenness`):**
-  1. **Công thức tự tính ngưỡng tắc nghẽn từ Biểu đồ cơ bản của chính dữ liệu** (kế thừa nguyên lý HCM / Choe 2002 / Chen 2004 / Cassidy & Bertini 1999, **không chép cứng hằng số từ bài báo**):
-     * Vận tốc dòng tự do: $v_{\text{ff}} = \text{median}(v \mid o < 0{,}05)$.
-     * Ngưỡng tắc nghẽn: $v_{\text{cong}} = 0{,}60\,v_{\text{ff}}$; ngưỡng bắt đầu pha chuyển tiếp (*Synchronized Flow*): $v_{\text{sync}} = 0{,}80\,v_{\text{ff}}$.
-     * Ngưỡng chiếm dụng bão hòa $o_{\text{sat}}$: điểm sớm nhất trên nhánh đi lên của đường cong `Flow(Occ)` đạt $90\%$ đỉnh công suất $Q_{\max}$ tại $o_{\text{crit}}$.
+  1. **Công thức tự tính ngưỡng tắc nghẽn từ Biểu đồ cơ bản của chính dữ liệu** (kết hợp quy chuẩn liên bang **FHWA 23 CFR Part 490** và nguyên lý **HCM / Choe 2002 / Chen 2004 / Cassidy & Bertini 1999**, **không chép cứng hằng số từ bài báo**):
+     * Vận tốc dòng tự do: $v_{\text{ff}} = \text{median}(v \mid o < 0{,}05)$ (`PEMS08`: `67,10 mph`).
+     * Ngưỡng tắc nghẽn (**FHWA `< 60%` FFS**): $v_{\text{cong}} = 0{,}60\,v_{\text{ff}}$ (`40,26 mph`, tự khớp sát `~40 mph` của **Chen et al., 2004**); ngưỡng bắt đầu pha chuyển tiếp (*Synchronized Flow*): $v_{\text{sync}} = 0{,}80\,v_{\text{ff}}$ (`53,68 mph`).
+     * Ngưỡng chiếm dụng bão hòa $o_{\text{sat}}$: điểm sớm nhất trên nhánh đi lên của đường cong `Flow(Occ)` đạt $90\%$ đỉnh công suất $Q_{\max}$ tại $o_{\text{crit}}$ (`PEMS08`: `o_sat = 0,1325`, `o_crit = 0,1675`, khớp dải `11%–15%` của **Choe 2002 / HCM**).
      * Phân chia tự động 3 pha Kerner: **Thông thoáng (Pha 0)**, **Pha chuyển tiếp Synchronized (Pha 1)**, và **Tắc thực (Pha 2: $v < v_{\text{cong}} \land o \ge o_{\text{sat}}$)**.
-  2. **Bộ `7` chỉ báo tiền tắc nghẽn nhân quả khử xu hướng, liên kết đa biến & gắn dấu (`H = 12` bước = `60 phút`):**
-     * **Dao động khử dốc (*Kerner, 2004*):** `occ_rstd`, `spd_rstd`, `flow_rstd`.
-     * **Liên kết Đa biến (*Multivariate CSD — Chattopadhyay & Gupta, RSOS 2026*):** `occ_spd_corr` (`-corr(Occ, Speed)`) và `flow_occ_decouple` (`-corr(Flow, Occ)`).
-     * **Độ dốc có dấu (*California / McMaster* & phần xu hướng từ bước khử dốc):** `occ_slope`, `spd_slope` (phân tách rạch ròi pha tụt tốc `< 0` với pha hồi phục thoát tắc `> 0`, chống báo động giả).
-  3. **Đối chiếu đồ thị tĩnh vs. đồ thị động (`NB03` Phần 4):** Kiểm định loại trừ `Betweenness` tĩnh (**Li et al., 2015**, `p = 0,3966`) và chứng minh tương tác động qua lân cận có hướng `In + Out` (**DCRNN, 2018**) nâng `Val PR-AUC` thêm `+1,35%` (`5p`) đến `+5,53%` (`30p`).
+  2. **Trọn bộ `14` đặc trưng cục bộ (`3` biến gốc + `4` nhóm đặc trưng bổ sung trên cửa sổ nhân quả cố định `H = 12` bước = `60 phút`):**
+     * **Nhóm 1 — Dao động khử dốc (`3` biến — *Kerner, 2004*):** `occ_rstd`, `spd_rstd`, `flow_rstd`.
+     * **Nhóm 2 — Liên kết Đa biến (`2` cặp — *Multivariate CSD, Chattopadhyay & Gupta, RSOS 2026*):** `occ_spd_corr` (`-corr(Occ, Speed)`) và `flow_occ_decouple` (`-corr(Flow, Occ)`).
+     * **Nhóm 3 — Độ dốc có dấu (`2` biến — *California / McMaster* & phần xu hướng từ bước khử dốc):** `occ_slope`, `spd_slope` (phân tách rạch ròi pha tụt tốc vào tắc với pha hồi phục thoát tắc, chống báo động giả).
+     * **Nhóm 4 — Chu kỳ Thời gian (`4` biến — *STID, Shao et al., CIKM 2022*):** `tod_sin`, `tod_cos`, `dow_sin`, `dow_cos` (mã hóa tuần hoàn giờ trong ngày & thứ trong tuần, hoàn thiện đủ **`14` đặc trưng**, nâng tổng `Val PR-AUC` từ **`+22,51%` đến `+31,66%`** so với chỉ `3` biến thô).
+  3. **Đối chiếu đồ thị tĩnh vs. đồ thị động (`NB03` Phần 4):** Kiểm định loại trừ `Betweenness` tĩnh (**Li et al., *PNAS* 2015**, `p = 0,3966`) và chứng minh tương tác động qua lân cận có hướng `In + Out` (**DCRNN, Li et al., 2018**; khớp cơ chế độ trễ lan truyền không gian của **PDFormer, Jiang et al., *AAAI* 2023**) nâng tiếp `Val PR-AUC` trên nền `14` đặc trưng cục bộ thêm **`+1,88%` (`5p`) đến `+5,48%` (`30p`)**.
 
 ---
 
 ### RQ2 (Chính): Đánh giá Đóng góp của Dấu hiệu Tiền tắc nghẽn trên Mô hình Dự báo Đồ thị & GAT (`NB04` trên `PEMS08`, kiểm chứng độc lập trên `PEMS04` ở `NB05`)
 * **EN:** *Does augmenting graph-based forecasting models (including GAT) with pre-congestion signals improve future congestion prediction, and how much does each signal contribute?*
 * **VI:** *Việc bổ sung các dấu hiệu tiền tắc nghẽn có giúp các mô hình dự báo đồ thị (gồm GAT) dự đoán điểm tắc nghẽn tương lai tốt hơn không, và từng dấu hiệu đóng góp ra sao?*
-* **Thiết kế thí nghiệm đối chứng gọn nhẹ & chặt chẽ (`PyTorch`, chia thời gian chuẩn `60 / 20 / 20`, cửa sổ `12 → 12` bước):**
+* **Thiết kế thí nghiệm đối chứng gọn nhẹ & chặt chẽ (`PyTorch`, chia thời gian chuẩn `60 / 20 / 20`, cửa sổ `12 → 12` bước theo *LibCity, 2021* & *BasicTS, 2025*):**
   1. **So sánh trực diện hai tập đặc trưng trên cùng bộ mô hình gọn nhẹ:**
-     * **(A) Đặc trưng thô (`Base`):** `[Flow, Occupancy, Speed]` + chu kỳ thời gian `(sin/cos)`.
-     * **(B) Bổ sung dấu hiệu tiền tắc nghẽn (`+ Pre-Congestion Signals`):** `Base` + `7` chỉ báo từ RQ1 (`occ_rstd, spd_rstd, flow_rstd, occ_spd_corr, flow_occ_decouple, occ_slope, spd_slope`).
-  2. **3 mô hình gọn nhẹ chạy nhanh trên CPU:** `Persistence` (đường cơ sở giữ nguyên), `Temporal GRU` (chỉ chuỗi thời gian, không đồ thị), và **`ST-GAT` (`GRU + GATv2` gọn nhẹ có lưu trọng số chú ý cạnh)**.
-  3. **Phân tích đóng góp từng dấu hiệu:** Chạy **Ablation từng nhóm tín hiệu** (`+rstd` / `+coupling` / `+slope` / `All 7`), **Permutation Feature Importance**, và trực quan hóa **trọng số chú ý cạnh của GAT** quanh các nút tắc nghẽn.
-  4. **Kiểm chứng tổng quát sang `PEMS04` (`NB05`):** Áp nguyên si công thức tự tính ngưỡng từ dữ liệu `PEMS04` và lặp lại thí nghiệm đối chứng `Base` vs. `+ Signals` để khẳng định tính tổng quát của kết luận nghiên cứu.
+     * **(A) Đặc trưng cơ sở (`Base` — `7` kênh):** `3` biến gốc `[Flow, Occupancy, Speed]` + `4` chu kỳ thời gian `STID` `[tod_sin, tod_cos, dow_sin, dow_cos]` (**Shao et al., 2022**).
+     * **(B) Bổ sung dấu hiệu tiền tắc nghẽn (`Full` — `14` kênh):** `Base` (`7`) + `7` chỉ báo tiền tắc nghẽn từ RQ1 (`occ_rstd, spd_rstd, flow_rstd, occ_spd_corr, flow_occ_decouple, occ_slope, spd_slope`).
+  2. **3 mô hình gọn nhẹ, quy nạp (*inductive*, chuyển sang bản đồ khác kích thước `PEMS04` không cần đổi kiến trúc) chạy nhanh trên CPU:**
+     * `Persistence` (đường cơ sở giữ nguyên trạng thái cuối cùng),
+     * `Temporal GRU` (chỉ chuỗi thời gian, không đồ thị — nhánh thời gian theo **DCRNN, 2018**),
+     * **`ST-GAT`** (`GRU + GATv2` trên đồ thị có hướng 2 chiều `In + Out + Self`, lưu trọng số chú ý cạnh $\alpha_{ij}(t)$ — kế thừa nguyên lý quy nạp của **GraphSAGE, Hamilton et al., 2017**; **ST-GAT, Zhang et al., 2019**; và **GATv2, Brody et al., *ICLR* 2022**).
+  3. **Hai trục đánh giá đồng bộ & Phân tích đóng góp đặc trưng:** Đánh giá đồng thời dự báo hồi quy đa biến (`MAE / RMSE` trên `Flow, Occ, Speed`) và cảnh báo tắc nghẽn tương lai (`F1 / PR-AUC / Recall` theo ngưỡng tự tính ở RQ1 tại `5p / 15p / 30p / 60p`); chạy **Ablation từng nhóm tín hiệu** (`+rstd` / `+coupling` / `+slope` / `All 7`), **Permutation Feature Importance**, và trực quan hóa **trọng số chú ý cạnh động của `ST-GAT`** quanh các điểm nghẽn trọng yếu.
+  4. **Kiểm chứng tổng quát sang `PEMS04` (`NB05`):** Áp nguyên công thức tự tính ngưỡng từ Biểu đồ cơ bản `PEMS04` và lặp lại thí nghiệm đối chứng `Base` vs. `Full (+7 Signals)` để khẳng định tính tổng quát của kết luận nghiên cứu.
 
 ---
 
@@ -53,8 +57,8 @@ Tài liệu này chốt toàn bộ khung đề tài tối giản, sắc nét sau
 | :---: | :--- | :--- | :---: | :--- |
 | **01** | [`01_Overview.ipynb`](../notebooks/01_Overview.ipynb) | [`01_Overview_Report.md`](./01_Overview_Report.md) | Hoàn thành | Tổng quan đề tài (v7: `RQ1–RQ2`) & kiểm toán 4 tập dữ liệu gốc PeMS. |
 | **02** | [`02_Data_Cleaning_and_Interpolation.ipynb`](../notebooks/02_Data_Cleaning_and_Interpolation.ipynb) | [`02_Data_Cleaning_Report.md`](./02_Data_Cleaning_Report.md) | Hoàn thành | Làm sạch thuần **Chen et al. (2003)** (`0` lỗi trên `PEMS08` & `PEMS04`). |
-| **03** | [`03_EDA_and_Bottleneck_Analysis.ipynb`](../notebooks/03_EDA_and_Bottleneck_Analysis.ipynb) | [`03_EDA_and_Bottleneck_Report.md`](./03_EDA_and_Bottleneck_Report.md) | Hoàn thành | **RQ1 (thuần `PEMS08`):** Khám phá đa biến & tương quan `3 × 3` → Ngưỡng tự tính (FHWA `<60%` FFS + Biểu đồ cơ bản) & loại trừ `Flow` → Chuyển pha & `7` chỉ báo trọn chu kỳ (`H = 12` = `60p`) → Đối chiếu đồ thị tĩnh (`Betweenness`) vs. động (`In + Out`). |
-| **04** | `04_Modeling_and_Feature_Contribution.ipynb` | `04_Modeling_Report.md` *(kế hoạch)* | Tiếp theo | **RQ2 (`PyTorch`, `PEMS08`):** Đối chứng `Base` vs. `+ Signals` trên `Persistence / GRU / ST-GAT`, phân tích đóng góp từng đặc trưng & trọng số chú ý `GAT`. |
+| **03** | [`03_EDA_and_Bottleneck_Analysis.ipynb`](../notebooks/03_EDA_and_Bottleneck_Analysis.ipynb) | [`03_EDA_and_Bottleneck_Report.md`](./03_EDA_and_Bottleneck_Report.md) | Hoàn thành | **RQ1 (thuần `PEMS08`):** Khám phá đa biến & tương quan `3 × 3` → Ngưỡng tự tính (FHWA `<60%` FFS + Biểu đồ cơ bản) & loại trừ `Flow` → Chuyển pha, `7` chỉ báo tiền tắc nghẽn + Nhóm 4 `STID` (`14` đặc trưng, `H = 12` = `60p`) → Đối chiếu đồ thị tĩnh (`Betweenness`) vs. động (`In + Out`, khớp `PDFormer`). |
+| **04** | `04_Modeling_and_Feature_Contribution.ipynb` | `04_Modeling_Report.md` *(kế hoạch)* | Tiếp theo | **RQ2 (`PyTorch`, `PEMS08`):** Đối chứng `Base (7)` vs. `Full (+7 Signals = 14)` trên `Persistence / GRU / ST-GAT`, phân tích đóng góp từng nhóm đặc trưng & trọng số chú ý cạnh `GAT`. |
 | **05** | `05_Cross_Map_Validation_PEMS04.ipynb` | `05_Cross_Map_Validation_Report.md` *(kế hoạch)* | Kế hoạch | **Kiểm chứng độc lập trên `PEMS04`:** Tự hiệu chỉnh ngưỡng từ Biểu đồ cơ bản `PEMS04` + xác nhận lại ích lợi của dấu hiệu tiền tắc nghẽn trên bản đồ mới. |
 
 ---
@@ -63,8 +67,8 @@ Tài liệu này chốt toàn bộ khung đề tài tối giản, sắc nét sau
 
 | Ngày | Phiên bản | Chi tiết cập nhật | Trạng thái |
 | :--- | :---: | :--- | :---: |
-| 2026-11-28 | v1–v4 | Rà soát 35 bài báo PeMS, chuyển sang PyTorch, cập nhật `rules.md` & `requirements.txt`. | Hoàn thành |
+| 2026-11-28 | v1–v4 | Rà soát văn học PeMS, chuyển sang PyTorch, cập nhật `rules.md` & `requirements.txt`. | Hoàn thành |
 | 2026-11-28 | v5 | **Hoàn tất Bước 2:** Đơn giản hóa làm sạch thuần **Chen et al. (2003)** (`0` lỗi trên `PEMS08` & `PEMS04`). | Hoàn thành |
 | 2026-11-28 | v6 | Phát hiện lỗi áp cứng `Occ ≥ 0,15` sang `PEMS04` và nhiễu pha hồi phục của `Std` thô → tách `PEMS04` khỏi bước khám phá, nâng cấp sang dao động khử dốc + độ dốc có dấu. | Hoàn thành |
 | 2026-11-28 | **v7** | **CHỐT CHÍNH THỨC ĐỀ TÀI TỐI GIẢN (5 Notebook):** Đổi RQ2 sang đối chứng ích lợi của dấu hiệu tiền tắc nghẽn trên mô hình gọn & `GAT`; bỏ RQ3, bỏ phân loại Tầng 2, bỏ Pareto; giữ chứng minh định lượng loại trừ ngưỡng `Flow` (*Capacity Drop*) và `Betweenness` tĩnh (*Li 2015*); chuyển công thức ngưỡng RQ1 sang **tự tính 100% từ Biểu đồ cơ bản của dữ liệu**; giữ `PEMS04` độc lập làm **Notebook 05** kiểm chứng chéo cuối cùng. | Đã chốt |
-| 2026-11-28 | **v7.1** | **HOÀN TẤT & ĐẨY GIT CHẶNG 1 (`NB01 – NB03`, trọn vẹn RQ1):** Đồng bộ `NB01–NB02` sang v7; chốt `NB03` (`117` dòng code, tách `src/plots_nb03.py`, chuẩn FHWA `<60%` FFS + Biểu đồ cơ bản, bộ `7` chỉ báo đối xứng với Nhóm 2 liên kết đa biến `occ_spd_corr` & `flow_occ_decouple` nâng `+21,15%` đến `+31,33% PR-AUC`, đối chiếu đồ thị tĩnh vs. động `In + Out` nâng `+1,35%` đến `+5,53%`); tinh gọn `docs/literature_review.md` theo đúng các bài báo sử dụng; **sẵn sàng bắt đầu `NB04` (`RQ2` bằng PyTorch)**. | Hoàn thành (`NB01–03`) |
+| 2026-11-28 | **v7.1** | **HOÀN TẤT CHẶNG 1 (`NB01 – NB03`, trọn vẹn RQ1):** Đồng bộ `NB01–NB02` sang v7; chốt `NB03` gọn nhẹ (tách `src/plots_nb03.py`, chuẩn FHWA `<60%` FFS + Biểu đồ cơ bản, `7` chỉ báo tiền tắc nghẽn đối xứng + Nhóm 4 `4` chu kỳ `STID` có biểu đồ trực quan riêng nâng `+22,51%` đến `+31,66% PR-AUC`, đối chiếu đồ thị tĩnh `p = 0,3966` vs. động `In + Out` nâng `+1,88%` đến `+5,48%` khớp `PDFormer`); tinh gọn `docs/literature_review.md` còn **`22` tài liệu tham khảo chuẩn IEEE** gắn thẳng vào `NB01–NB05`; **sẵn sàng bắt đầu `NB04` (`RQ2` bằng PyTorch)**. | Hoàn thành (`NB01–03`) |
