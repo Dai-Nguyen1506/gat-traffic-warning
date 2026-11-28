@@ -13,8 +13,8 @@ Dự án nghiên cứu cuối kỳ môn *Data Visualization & Analytics* (bài b
 | **01** | [`01_Overview.ipynb`](./notebooks/01_Overview.ipynb) | [`01_Overview_Report.md`](./docs/01_Overview_Report.md) | Hoàn thành | Kiểm toán 4 tập PeMS; chọn `PEMS08` (Primary) và `PEMS04` (Held-out Validation). |
 | **02** | [`02_Data_Cleaning_and_Interpolation.ipynb`](./notebooks/02_Data_Cleaning_and_Interpolation.ipynb) | [`02_Data_Cleaning_Report.md`](./docs/02_Data_Cleaning_Report.md) | Hoàn thành | Chẩn đoán 4 chỉ số $S_1 \dots S_4$ & hồi quy cặp lân cận thuần **Chen et al. (2003)** (`0` lỗi tồn đọng). |
 | **03** | [`03_EDA_and_Bottleneck_Analysis.ipynb`](./notebooks/03_EDA_and_Bottleneck_Analysis.ipynb) | [`03_EDA_and_Bottleneck_Report.md`](./docs/03_EDA_and_Bottleneck_Report.md) | Hoàn thành | **RQ1 (thuần `PEMS08`):** Khám phá đa biến & tương quan `3 × 3`, công thức tự tính ngưỡng (FHWA `<60%` FFS + Biểu đồ cơ bản) + loại trừ `Flow`, kiểm chứng `7` chỉ báo tiền tắc + `4` chu kỳ `STID` (`+22,51%` đến `+31,66% PR-AUC`), đối chiếu đồ thị tĩnh (`p = 0,3966`) vs. động `In + Out` (`+1,88%` đến `+5,48%`, khớp `PDFormer`). |
-| **04** | `04_Modeling_and_Feature_Contribution.ipynb` | `04_Modeling_Report.md` *(kế hoạch)* | Tiếp theo | **RQ2 (`PyTorch`, `PEMS08`):** Thí nghiệm đối chứng `Base` vs. `+ 7 chỉ báo tiền tắc nghẽn` trên `Persistence`, `GRU`, `ST-GAT`; phân tích đóng góp từng nhóm đặc trưng & chú ý cạnh `GAT`. |
-| **05** | `05_Cross_Map_Validation_PEMS04.ipynb` | `05_Cross_Map_Validation_Report.md` *(kế hoạch)* | Kế hoạch | **Kiểm chứng độc lập (`PEMS04`):** Tự hiệu chỉnh ngưỡng từ Biểu đồ cơ bản `PEMS04` và xác nhận lại ích lợi của dấu hiệu tiền tắc nghẽn trên bản đồ mới. |
+| **04** | [`04_Modeling_and_Feature_Contribution.ipynb`](./notebooks/04_Modeling_and_Feature_Contribution.ipynb) | [`04_Modeling_Report.md`](./docs/04_Modeling_Report.md) | Hoàn thành | **RQ2 (`PyTorch`, `PEMS08`):** Đóng băng `1` kiến trúc `ST-GAT (LSTM → 2-layer GATv2)` đối chứng `6` bộ đặc trưng (`Raw 3`, `Base 7`, `+G1/+G2/+G3`, `Full 14`) theo trọng tâm **`MAE`** (`-8,19%` vs `Raw`, `-2,17%` vs `Base`), `Permutation Feature Importance` (`14/14` dương), chú ý cạnh `GATv2` & kiểm chứng phụ tắc nghẽn (ngưỡng thuần `Train`). |
+| **05** | [`05_Cross_Map_Validation_PEMS04.ipynb`](./notebooks/05_Cross_Map_Validation_PEMS04.ipynb) | [`05_Cross_Map_Validation_Report.md`](./docs/05_Cross_Map_Validation_Report.md) | Hoàn thành | **Kiểm chứng đối xứng (`PEMS04`) & Kết luận:** Tự hiệu chỉnh ngưỡng thuần `Train` ($o_{\text{sat}} = 0{,}1025$), đối chứng trọn vẹn `6` bộ đặc trưng trên cùng kiến trúc `ST-GAT` (`Std-MAE -6,25%` vs `Raw`, `-1,38%` vs `Base`, kèm *Zero-Shot* `0` epoch), xác nhận nhất quán `PFI` xuyên 2 thành phố (`ρ = 0,9956`), chú ý `GATv2` (`Out +22,5%`) và tổng kết toàn dự án. |
 
 ---
 
@@ -35,8 +35,8 @@ gat-traffic-warning/
 ├── datasets/              # Dữ liệu thô (data/) và dữ liệu sạch (cleaned/) — không đẩy lên Git
 ├── docs/                  # Kế hoạch (plan.md), tổng quan văn học (literature_review.md), quy chuẩn & báo cáo
 ├── notebooks/             # 5 Notebook thực nghiệm (01–05)
-├── outputs/               # Biểu đồ 300 DPI (figures/), bảng điểm tắc PEMS08 (.csv) & đồ thị (.gexf)
-└── src/                   # Mã nguồn tái sử dụng (cleaning.py, bottlenecks.py, plots_nb03.py, ...)
+├── outputs/               # Biểu đồ 300 DPI (figures/), bảng kết quả (.csv), đồ thị (.gexf); checkpoint (models/) lưu cục bộ, không đẩy lên Git
+└── src/                   # Mã nguồn tái sử dụng (cleaning.py, bottlenecks.py, data.py, models.py, train.py, explain.py, plots_nb03–05.py)
 ```
 
 * **Môi trường khuyến nghị:** Python `3.12` (`.venv`), **PyTorch** (`torch 2.15.0+cpu`), `NumPy`, `Pandas`, `SciPy`, `Scikit-learn`, `NetworkX`, `Matplotlib`, `Seaborn`, cố định `SEED = 42`.

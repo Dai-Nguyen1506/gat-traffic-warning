@@ -1,206 +1,269 @@
-"""Data loading, deduplicated graph construction, and chronological regression splits for PeMS."""
+"""Zero-leakage PyTorch data pipeline for PeMS (60/20/20 split, 12->12 window, Train-only threshold & scaler)."""
 
+from __future__ import annotations
+
+from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+import torch
+from torch.utils.data import Dataset
 
-FEATURE_NAMES = ["Flow", "Occupancy", "Speed"]
+from src.bottlenecks import (
+    CSD_FEATURE_NAMES,
+    CongestionThresholds,
+    calibrate_congestion_thresholds,
+    classify_traffic_phases,
+    extract_precongestion_features,
+    extract_time_features,
+    load_cleaned_pems,
+)
+
+RAW_FEATURE_NAMES = ["Flow", "Occupancy", "Speed"]
 TIME_FEATURE_NAMES = ["tod_sin", "tod_cos", "dow_sin", "dow_cos"]
 
+# Canonical 14-channel ordering: Raw(3) + Group 4 STID(4) + Group 1-3 Pre-Congestion Signals(7)
+ALL_FEATURE_NAMES: List[str] = RAW_FEATURE_NAMES + TIME_FEATURE_NAMES + list(CSD_FEATURE_NAMES)
+
+# Indices of continuous channels standardized using Train-only mean/std (sin/cos remain in [-1, 1])
+CONTINUOUS_CHANNEL_INDICES: List[int] = [0, 1, 2, 7, 8, 9, 10, 11, 12, 13]
+
+# Named feature groups aligned with NB03 (RQ1)
+FEATURE_GROUPS: Dict[str, List[int]] = OrderedDict(
+    [
+        ("Raw (3 biến gốc)", [0, 1, 2]),
+        ("Nhóm 4 — STID (Chu kỳ thời gian)", [3, 4, 5, 6]),
+        ("Nhóm 1 — Dao động khử dốc", [7, 8, 9]),
+        ("Nhóm 2 — Liên kết đa biến", [10, 11]),
+        ("Nhóm 3 — Độ dốc có dấu", [12, 13]),
+    ]
+)
+
+# 6 controlled feature-set configurations on the frozen ST-GAT (LSTM -> GATv2) architecture
+FEATURE_CONFIGS: Dict[str, List[int]] = OrderedDict(
+    [
+        ("Raw (3)", [0, 1, 2]),
+        ("Base (7)", [0, 1, 2, 3, 4, 5, 6]),
+        ("Base + Nhóm 1 (10)", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        ("Base + Nhóm 2 (9)", [0, 1, 2, 3, 4, 5, 6, 10, 11]),
+        ("Base + Nhóm 3 (9)", [0, 1, 2, 3, 4, 5, 6, 12, 13]),
+        ("Full (14)", list(range(14))),
+    ]
+)
+
 # Calendar start day-of-week (0=Mon .. 6=Sun): PEMS08 starts Fri 2016-07-01 (4), PEMS04 starts Mon 2018-01-01 (0)
-DATASET_START_DOW = {
+DATASET_START_DOW: Dict[str, int] = {
     "PEMS08": 4,
     "PEMS04": 0,
 }
 
-
-def load_clean_pems(
-    dataset_name: str,
-    clean_dir: str | Path = "datasets/cleaned",
-    raw_dir: str | Path = "datasets/data",
-    out_dir: str | Path = "outputs",
-) -> Tuple[np.ndarray, pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
-    """Load cleaned PeMS tensor (T, N, 3), deduplicated directed edges, and bottleneck table."""
-    clean_path = Path(clean_dir) / f"{dataset_name}_clean.npz"
-    csv_path = Path(raw_dir) / dataset_name / f"{dataset_name}.csv"
-    bn_path = Path(out_dir) / f"{dataset_name}_bottlenecks.csv"
-
-    if not clean_path.exists():
-        raise FileNotFoundError(f"Missing cleaned dataset: {clean_path}")
-    if not csv_path.exists():
-        raise FileNotFoundError(f"Missing edge list CSV: {csv_path}")
-    if not bn_path.exists():
-        raise FileNotFoundError(f"Missing bottlenecks CSV: {bn_path}")
-
-    npz_obj = np.load(clean_path)
-    key = "data" if "data" in npz_obj.files else npz_obj.files[0]
-    data = npz_obj[key].astype(np.float32)
-
-    edges_df = pd.read_csv(csv_path)
-    edges_df.columns = [c.strip().lower() for c in edges_df.columns]
-    edges_df["from"] = edges_df["from"].astype(int)
-    edges_df["to"] = edges_df["to"].astype(int)
-    edges_df["cost"] = edges_df["cost"].astype(float)
-    # Deduplicate directed edges consistently with Notebook 03 (277 unique for PEMS08)
-    edges_df = (
-        edges_df.sort_values("cost", ascending=True)
-        .drop_duplicates(subset=["from", "to"], keep="first")
-        .reset_index(drop=True)
-    )
-
-    bn_df = pd.read_csv(bn_path)
-    bn_top = bn_df[bn_df["is_bottleneck"]].sort_values("congestion_freq", ascending=False)
-    bottleneck_nodes = bn_top["node_id"].to_numpy(dtype=np.int32)
-
-    num_nodes = data.shape[1]
-    bottleneck_mask = np.zeros(num_nodes, dtype=bool)
-    bottleneck_mask[bottleneck_nodes] = True
-
-    return data, edges_df, bn_df, bottleneck_nodes, bottleneck_mask
+# Edge direction types for GATv2
+EDGE_TYPE_SELF = 0
+EDGE_TYPE_IN = 1   # Upstream -> Downstream (original directed road link u -> v)
+EDGE_TYPE_OUT = 2  # Downstream -> Upstream (reverse spillback link v -> u)
 
 
-def build_edge_index(
+def build_directed_edge_index(
     edges_df: pd.DataFrame,
     num_nodes: int,
-    add_self_loops: bool = True,
-    bidirectional: bool = False,
-) -> np.ndarray:
-    """Return deduplicated COO edge_index (2, E) int32 with src=edge_index[0], dst=edge_index[1]."""
-    src = edges_df["from"].to_numpy(dtype=np.int32)
-    dst = edges_df["to"].to_numpy(dtype=np.int32)
-    valid = (src >= 0) & (src < num_nodes) & (dst >= 0) & (dst < num_nodes)
-    src, dst = src[valid], dst[valid]
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, int]]:
+    """
+    Build deduplicated bidirectional edge_index (2, E) with explicit direction types:
+      - 0 (Self): i -> i
+      - 1 (In):   u -> v from original directed edges_df (upstream inflow)
+      - 2 (Out):  v -> u reverse edges not already in original directed edges_df (downstream spillback).
+    """
+    orig_pairs = set()
+    for row in edges_df[["from", "to"]].itertuples(index=False):
+        u, v = int(row[0]), int(row[1])
+        if 0 <= u < num_nodes and 0 <= v < num_nodes and u != v:
+            orig_pairs.add((u, v))
 
-    if bidirectional:
-        src, dst = np.concatenate([src, dst]), np.concatenate([dst, src])
+    src_list: List[int] = []
+    dst_list: List[int] = []
+    type_list: List[int] = []
 
-    if add_self_loops:
-        loops = np.arange(num_nodes, dtype=np.int32)
-        src = np.concatenate([src, loops])
-        dst = np.concatenate([dst, loops])
+    # 1. Self-loops
+    for i in range(num_nodes):
+        src_list.append(i)
+        dst_list.append(i)
+        type_list.append(EDGE_TYPE_SELF)
 
-    edge_index = np.stack([src, dst], axis=0)
-    keys = edge_index[0].astype(np.int64) * num_nodes + edge_index[1].astype(np.int64)
-    _, unique_idx = np.unique(keys, return_index=True)
-    unique_idx.sort()
-    return edge_index[:, unique_idx].astype(np.int32)
+    # 2. Upstream -> Downstream (In)
+    for u, v in sorted(orig_pairs):
+        src_list.append(u)
+        dst_list.append(v)
+        type_list.append(EDGE_TYPE_IN)
+
+    # 3. Downstream -> Upstream (Out / spillback), skipping mutual pairs already added as In
+    n_out = 0
+    for u, v in sorted(orig_pairs):
+        if (v, u) not in orig_pairs:
+            src_list.append(v)
+            dst_list.append(u)
+            type_list.append(EDGE_TYPE_OUT)
+            n_out += 1
+
+    edge_index = np.asarray([src_list, dst_list], dtype=np.int64)
+    edge_type = np.asarray(type_list, dtype=np.int64)
+    edge_meta = {
+        "n_nodes": int(num_nodes),
+        "n_edges_total": int(len(type_list)),
+        "n_self": int(num_nodes),
+        "n_in": int(len(orig_pairs)),
+        "n_out": int(n_out),
+    }
+    return edge_index, edge_type, edge_meta
 
 
-def apply_congestion_rule(
+def apply_thresholds(
     speed: np.ndarray,
     occ: np.ndarray,
-    speed_th: float = 40.0,
-    occ_th: float = 0.15,
+    thresholds: CongestionThresholds,
 ) -> np.ndarray:
-    """Decoupled physical congestion criterion finalized in Notebook 03."""
-    return (speed < speed_th) & (occ >= occ_th)
+    """Apply Train-calibrated physical congestion rule: (Speed < v_cong) & (Occ >= o_sat)."""
+    return (speed < thresholds.v_cong) & (occ >= thresholds.o_sat)
 
 
-def build_time_features(
-    num_steps: int,
-    steps_per_day: int = 288,
-    start_dow: int = 4,
+def inverse_scale_targets(
+    y_std: np.ndarray,
+    target_mean: np.ndarray,
+    target_std: np.ndarray,
+    clip_physical: bool = True,
 ) -> np.ndarray:
-    """Create cyclical time-of-day and day-of-week features of shape (T, 4)."""
-    t = np.arange(num_steps, dtype=np.float32)
-    tod = (t % steps_per_day) / float(steps_per_day)
-    dow = ((t // steps_per_day) + start_dow) % 7.0 / 7.0
-
-    feats = np.stack(
-        [
-            np.sin(2.0 * np.pi * tod),
-            np.cos(2.0 * np.pi * tod),
-            np.sin(2.0 * np.pi * dow),
-            np.cos(2.0 * np.pi * dow),
-        ],
-        axis=-1,
-    )
-    return feats.astype(np.float32)
+    """Inverse-transform standardized predictions (..., 3) back to physical [Flow, Occupancy, Speed]."""
+    raw = (y_std * target_std + target_mean).astype(np.float32)
+    if clip_physical:
+        raw[..., 0] = np.clip(raw[..., 0], 0.0, None)
+        raw[..., 1] = np.clip(raw[..., 1], 0.0, 1.0)
+        raw[..., 2] = np.clip(raw[..., 2], 0.0, None)
+    return raw
 
 
-def create_regression_splits(
-    data: np.ndarray,
-    bottleneck_nodes: np.ndarray,
-    history_steps: int = 8,
-    lead_steps: int = 3,
-    train_ratio: float = 0.70,
-    val_ratio: float = 0.15,
-    start_dow: int = 4,
+def prepare_pems_bundle(
+    dataset_name: str = "PEMS08",
+    clean_dir: str | Path = "datasets/cleaned",
+    raw_dir: str | Path = "datasets/data",
+    history_steps: int = 12,
+    horizon_steps: int = 12,
+    train_ratio: float = 0.60,
+    val_ratio: float = 0.20,
+    bottleneck_min_freq: float = 0.01,
 ) -> Dict[str, object]:
     """
-    Create strictly chronological 70/15/15 spatio-temporal regression splits with zero leakage.
-
-    Inputs X have shape (M, N, H, 7): standardized [Flow, Occ, Speed] + [tod_sin, tod_cos, dow_sin, dow_cos].
-    Targets y have shape (M, N, 3): standardized [Flow, Occ, Speed] at t + lead_steps.
+    Prepare zero-leakage chronological 60/20/20 PeMS bundle for 12 -> 12 multi-step forecasting:
+      1. Calibrate congestion thresholds (v_cong, o_sat) STRICTLY on Train (60%), then apply to Val & Test.
+      2. Identify bottleneck stations (congestion_freq >= 1%) STRICTLY on Train (60%).
+      3. Standardize continuous channels STRICTLY using Train (60%) mean/std.
+      4. Enforce causal window margin (2 * H - 2 = 22 steps) inside each split so zero past data crosses split boundaries.
     """
-    T, N, C = data.shape
+    data, edges_df = load_cleaned_pems(dataset_name, clean_dir=clean_dir, raw_dir=raw_dir)
+    T, N, _ = data.shape
     t_train_end = int(T * train_ratio)
     t_val_end = int(T * (train_ratio + val_ratio))
 
-    scaler = StandardScaler()
-    scaler.fit(data[:t_train_end].reshape(-1, C))
-    scaled = scaler.transform(data.reshape(-1, C)).reshape(T, N, C).astype(np.float32)
+    # 1. Train-only congestion threshold calibration (zero leakage into Val/Test)
+    train_thresholds = calibrate_congestion_thresholds(
+        data[:t_train_end, :, 0],
+        data[:t_train_end, :, 1],
+        data[:t_train_end, :, 2],
+    )
+    _, is_congested, is_synchronized = classify_traffic_phases(
+        data[:, :, 2], data[:, :, 1], train_thresholds
+    )
 
-    time_feats = build_time_features(T, steps_per_day=288, start_dow=start_dow)  # (T, 4)
-    time_broad = np.broadcast_to(time_feats[:, None, :], (T, N, 4))
-    full_feats = np.concatenate([scaled, time_broad], axis=-1).astype(np.float32)  # (T, N, 7)
+    # Train-only bottleneck mask (stations with >= 1% congestion in Train split)
+    train_cong_freq = is_congested[:t_train_end].mean(axis=0)
+    bottleneck_mask = train_cong_freq >= bottleneck_min_freq
+    bottleneck_nodes = np.where(bottleneck_mask)[0].astype(np.int64)
+    bottleneck_nodes = bottleneck_nodes[np.argsort(-train_cong_freq[bottleneck_nodes])]
 
-    def _make_windows(start_bound: int, end_bound: int):
-        first_t = start_bound + history_steps - 1
-        last_t = end_bound - lead_steps
-        ts = np.arange(first_t, last_t, dtype=np.int32)
-        X = np.stack(
-            [full_feats[ts - history_steps + 1 + h] for h in range(history_steps)],
-            axis=2,
-        ).astype(np.float32)  # (M, N, H, 7)
-        y_std = scaled[ts + lead_steps].astype(np.float32)  # (M, N, 3)
-        y_raw = data[ts + lead_steps].astype(np.float32)  # (M, N, 3)
-        cur_raw = data[ts].astype(np.float32)  # (M, N, 3)
-        return X, y_std, y_raw, cur_raw, ts
+    # 2. Extract all 14 local features: Raw(3) + STID(4) + Pre-congestion CSD(7)
+    start_dow = DATASET_START_DOW.get(dataset_name, 0)
+    time4 = extract_time_features(T, N, start_dow=start_dow)
+    csd7 = extract_precongestion_features(data, window=history_steps)
+    feats_raw = np.concatenate([data, time4, csd7], axis=-1).astype(np.float32)  # (T, N, 14)
 
-    X_train, y_train, y_raw_train, cur_raw_train, t_train = _make_windows(0, t_train_end)
-    X_val, y_val, y_raw_val, cur_raw_val, t_val = _make_windows(t_train_end, t_val_end)
-    X_test, y_test, y_raw_test, cur_raw_test, t_test = _make_windows(t_val_end, T)
+    # 3. Train-only standardization on continuous channels (skip initial padded csd steps < history_steps - 1)
+    fit_slice = feats_raw[history_steps - 1 : t_train_end]
+    feat_mean = np.zeros(14, dtype=np.float32)
+    feat_std = np.ones(14, dtype=np.float32)
+    for ch in CONTINUOUS_CHANNEL_INDICES:
+        vals = fit_slice[:, :, ch]
+        feat_mean[ch] = float(vals.mean())
+        feat_std[ch] = float(max(vals.std(), 1e-6))
 
-    bottleneck_mask = np.zeros(N, dtype=bool)
-    bottleneck_mask[bottleneck_nodes] = True
+    feats_scaled = ((feats_raw - feat_mean) / feat_std).astype(np.float32)
+    target_mean = feat_mean[:3].copy()
+    target_std = feat_std[:3].copy()
+    targets_scaled = feats_scaled[:, :, :3].copy()
+
+    # 4. Strictly isolated anchor indices per split (earliest csd lookback = t - 2*H + 2 stays inside split)
+    margin = 2 * history_steps - 2
+    t_train = np.arange(margin, t_train_end - horizon_steps, dtype=np.int64)
+    t_val = np.arange(t_train_end + margin, t_val_end - horizon_steps, dtype=np.int64)
+    t_test = np.arange(t_val_end + margin, T - horizon_steps, dtype=np.int64)
+
+    edge_index, edge_type, edge_meta = build_directed_edge_index(edges_df, num_nodes=N)
 
     return {
-        "X_train": X_train,
-        "y_train": y_train,
-        "y_raw_train": y_raw_train,
-        "cur_raw_train": cur_raw_train,
-        "t_train": t_train,
-        "X_val": X_val,
-        "y_val": y_val,
-        "y_raw_val": y_raw_val,
-        "cur_raw_val": cur_raw_val,
-        "t_val": t_val,
-        "X_test": X_test,
-        "y_test": y_test,
-        "y_raw_test": y_raw_test,
-        "cur_raw_test": cur_raw_test,
-        "t_test": t_test,
-        "scaler": scaler,
+        "dataset_name": dataset_name,
+        "data_raw": data,
+        "edges_df": edges_df,
+        "edge_index": edge_index,
+        "edge_type": edge_type,
+        "edge_meta": edge_meta,
+        "feats_raw": feats_raw,
+        "feats_scaled": feats_scaled,
+        "targets_scaled": targets_scaled,
+        "feat_mean": feat_mean,
+        "feat_std": feat_std,
+        "target_mean": target_mean,
+        "target_std": target_std,
+        "train_thresholds": train_thresholds,
+        "is_congested": is_congested,
+        "is_synchronized": is_synchronized,
+        "train_cong_freq": train_cong_freq,
         "bottleneck_mask": bottleneck_mask,
         "bottleneck_nodes": bottleneck_nodes,
         "history_steps": history_steps,
-        "lead_steps": lead_steps,
+        "horizon_steps": horizon_steps,
         "t_train_end": t_train_end,
         "t_val_end": t_val_end,
+        "t_train": t_train,
+        "t_val": t_val,
+        "t_test": t_test,
     }
 
 
-def inverse_scale_targets(y_std: np.ndarray, scaler: StandardScaler) -> np.ndarray:
-    """Inverse-transform standardized targets (..., 3) back to physical [Flow, Occupancy, Speed]."""
-    orig_shape = y_std.shape
-    raw = scaler.inverse_transform(y_std.reshape(-1, orig_shape[-1])).reshape(orig_shape)
-    # Enforce physical non-negativity (Flow >= 0, Occ in [0, 1], Speed >= 0)
-    raw = raw.astype(np.float32)
-    raw[..., 0] = np.clip(raw[..., 0], 0.0, None)
-    raw[..., 1] = np.clip(raw[..., 1], 0.0, 1.0)
-    raw[..., 2] = np.clip(raw[..., 2], 0.0, None)
-    return raw
+class PeMSWindowDataset(Dataset):
+    """Memory-efficient PyTorch Dataset slicing (H, N, F) -> (N, P, 3) windows on the fly."""
+
+    def __init__(
+        self,
+        feats_scaled: np.ndarray,
+        targets_scaled: np.ndarray,
+        anchors: np.ndarray,
+        feature_indices: Sequence[int],
+        history_steps: int = 12,
+        horizon_steps: int = 12,
+    ) -> None:
+        self.feats = torch.from_numpy(
+            np.ascontiguousarray(feats_scaled[:, :, list(feature_indices)], dtype=np.float32)
+        )
+        self.targets = torch.from_numpy(np.ascontiguousarray(targets_scaled, dtype=np.float32))
+        self.anchors = anchors.astype(np.int64)
+        self.history_steps = int(history_steps)
+        self.horizon_steps = int(horizon_steps)
+
+    def __len__(self) -> int:
+        return len(self.anchors)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        t = int(self.anchors[idx])
+        # x: (H, N, F), y: (N, P, 3)
+        x = self.feats[t - self.history_steps + 1 : t + 1]
+        y = self.targets[t + 1 : t + self.horizon_steps + 1].permute(1, 0, 2)
+        return x, y

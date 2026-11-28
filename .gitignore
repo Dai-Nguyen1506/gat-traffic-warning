@@ -1,4 +1,8 @@
 .venv/
 datasets/
+outputs/models/
 __pycache__/
 *.pyc
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
