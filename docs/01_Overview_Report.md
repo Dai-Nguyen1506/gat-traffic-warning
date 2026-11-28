@@ -9,15 +9,14 @@
 
 Trên mạng lưới đường cao tốc đô thị, ùn tắc hiếm khi bùng phát đồng loạt ở mọi tuyến đường mà thường khởi phát tại một số **nút thắt cổ chai** rồi lan truyền ngược dòng sang các đoạn lân cận. Các hệ thống giám sát truyền thống chỉ cảnh báo sau khi vận tốc tại chỗ đã giảm sâu, khiến công tác điều tiết rơi vào thế bị động.
 
-Toàn bộ dự án hướng tới giải đáp hai câu hỏi nghiên cứu:
+* **Đề tài nghiên cứu:** *Tín hiệu Tiền tắc nghẽn Hướng Vật lý cho Bài toán Dự báo Điểm nghẽn Cao tốc bằng Mạng Chú ý Đồ thị* (*Physics-Informed Pre-Congestion Signals for Freeway Bottleneck Forecasting with Graph Attention*).
+* **Hai Câu hỏi Nghiên cứu (RQ1 – RQ2):**
+  1. **RQ1 (Xác định tắc nghẽn & Tín hiệu tiền tắc nghẽn — `NB03` trên `PEMS08`):** *Làm thế nào xác định trạng thái tắc nghẽn và trích xuất các dấu hiệu tiền tắc nghẽn trực tiếp từ dữ liệu cảm biến đa biến?*
+  2. **RQ2 (Đánh giá đóng góp đặc trưng trên mô hình dự báo đồ thị — `NB04` trên `PEMS08`, kiểm chứng độc lập trên `PEMS04` ở `NB05`):** *Việc bổ sung các dấu hiệu tiền tắc nghẽn có giúp các mô hình dự báo đồ thị (gồm mô hình chú ý đồ thị) dự đoán điểm tắc nghẽn tương lai tốt hơn không, và từng dấu hiệu đóng góp ra sao?*
 
-1. **RQ1 (Chân dung điểm nghẽn & Tín hiệu cảnh báo sớm):** *Những đặc điểm trung tâm mạng lưới nào định hình nên các nút thắt tắc nghẽn chính, và những dấu hiệu cảnh báo sớm nào xuất hiện trước khi kẹt xe xảy ra?*
-
-2. **RQ2 (Thử nghiệm giả lập điều tiết lưu lượng chủ động):** *Trong kịch bản giả lập dựa trên mô hình GNN, việc chủ động giảm bớt lưu lượng xe đầu nguồn ngay khi có tín hiệu cảnh báo sớm giúp giảm thiểu tình trạng tắc nghẽn tại các điểm nghẽn hiệu quả đến mức nào?*
-
-### Hệ thống công cụ & Lộ trình 7 bước
-* **Công cụ kỹ thuật:** `Python 3.12`, `TensorFlow / Keras`, `Scikit-learn`, `NetworkX`, `Gephi`, `SHAP`, `NumPy`, `Pandas`, `SciPy`, `Matplotlib`, `Seaborn`.
-* **Quy trình 7 bước:** (`01`) Tổng quan & Chọn dữ liệu → (`02`) Làm sạch & Nội suy → (`03`) Khám phá EDA & Phân tích điểm nghẽn → (`04`) Kiểm chứng dấu hiệu tiền tắc nghẽn & Chốt tham số → (`05`) Thử nghiệm & Giải thích mô hình → (`06`) Giả lập điều tiết & Kiểm chứng chéo → (`07`) Tổng kết `RQ1 – RQ2`.
+### Hệ thống công cụ & Lộ trình 5 bước
+* **Công cụ kỹ thuật:** `Python 3.12`, `PyTorch`, `Scikit-learn`, `NetworkX`, `NumPy`, `Pandas`, `SciPy`, `Matplotlib`, `Seaborn` (cố định `SEED = 42`).
+* **Quy trình 5 bước:** (`01`) Tổng quan & Chọn dữ liệu → (`02`) Làm sạch & Phục hồi theo Chen et al. (2003) → (`03`) Khám phá, Xác định Tắc nghẽn & Tín hiệu Tiền tắc nghẽn (`RQ1`, thuần `PEMS08`) → (`04`) Mô hình hóa & Đánh giá Đóng góp Đặc trưng (`RQ2`, `PEMS08`) → (`05`) Kiểm chứng chéo Độc lập trên `PEMS04`.
 
 ---
 
