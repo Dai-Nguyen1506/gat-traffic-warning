@@ -9,13 +9,11 @@ Tài liệu này gợi ý cấu trúc gọn nhẹ, chuẩn mực cho các notebo
 | Số thứ tự | Tệp Notebook (`notebooks/`) | Tệp Báo cáo (`docs/`) | Nội dung chính |
 | :---: | :--- | :--- | :--- |
 | **00** | `00_Notebook_Template.ipynb` | — | File mẫu chuẩn hóa cấu trúc dùng để nhân bản khi tạo notebook mới. |
-| **01** | `01_Overview.ipynb` | [`01_Overview_Report.md`](./01_Overview_Report.md) | Tổng quan đề tài, RQ1–RQ2, công cụ, lộ trình 7 bước và kiểm toán 4 bộ dữ liệu gốc. |
-| **02** | `02_Data_Cleaning_and_Interpolation.ipynb` | [`02_Data_Cleaning_Report.md`](./02_Data_Cleaning_Report.md) | Kiểm toán lỗi cảm biến và nội suy làm sạch dữ liệu. |
-| **03** | `03_EDA_and_Bottleneck_Analysis.ipynb` | [`03_EDA_and_Bottleneck_Report.md`](./03_EDA_and_Bottleneck_Report.md) | Khám phá dữ liệu sạch, chốt tiêu chí tắc nghẽn 3 biến, định danh Top 20 điểm nghẽn và phân tích đồ thị tĩnh. |
-| **04** | `04_Pre_Congestion_Signal_Analysis.ipynb` | [`04_Pre_Congestion_Signal_Report.md`](./04_Pre_Congestion_Signal_Report.md) | Kiểm chứng dấu hiệu tiền tắc nghẽn: quỹ đạo pha, chốt cửa sổ `H*`, độ biến động, cấu trúc không gian đa nhánh và tìm `Δt*`. |
-| **05** | `05_Modeling_and_Explainability.ipynb` | [`05_Modeling_Report.md`](./05_Modeling_Report.md) | Thiết kế, thử nghiệm, lựa chọn mô hình dự báo cảnh báo sớm (`TensorFlow / Keras`) và giải thích mô hình. |
-| **06** | `06_Simulation_and_Cross_Validation.ipynb` | `06_Simulation_Report.md` *(dự kiến)* | Giả lập điều tiết lưu lượng đầu nguồn và kiểm chứng chéo sang PEMS04. |
-| **07** | `07_Research_Synthesis_and_Conclusions.ipynb` | `07_Synthesis_Report.md` *(dự kiến)* | Tổng hợp toàn bộ bằng chứng định lượng và kết luận trọn vẹn RQ1 – RQ2. |
+| **01** | `01_Overview.ipynb` | [`01_Overview_Report.md`](./01_Overview_Report.md) | Tổng quan đề tài, kiểm toán 4 bộ dữ liệu gốc và chọn `PEMS08` (Primary) / `PEMS04` (Held-out Transfer). |
+| **02** | `02_Data_Cleaning_and_Interpolation.ipynb` | [`02_Data_Cleaning_Report.md`](./02_Data_Cleaning_Report.md) | Chẩn đoán lỗi cảm biến $S_1 \dots S_4$ và hồi quy cặp lân cận thuần **Chen et al. (2003)**. |
+| **03** | `03_EDA_and_Bottleneck_Analysis.ipynb` | [`03_EDA_and_Bottleneck_Report.md`](./03_EDA_and_Bottleneck_Report.md) | **RQ1 (thuần `PEMS08`):** Khám phá đa biến, công thức tự tính ngưỡng (FHWA `<60%` FFS + Biểu đồ cơ bản) & loại trừ `Flow`, kiểm chứng `7` chỉ báo tiền tắc nghẽn (khử dốc + liên kết đa biến + độ dốc có dấu), và đối chiếu đồ thị tĩnh vs. động (`In + Out`). |
+| **04** | `04_Modeling_and_Feature_Contribution.ipynb` | `04_Modeling_Report.md` *(dự kiến)* | **RQ2 (`PyTorch`, `PEMS08`):** Thí nghiệm đối chứng `Raw` vs. `Raw + Dấu hiệu tiền tắc nghẽn` trên `Persistence`, `GRU`, và `ST-GAT`; phân tích đóng góp từng đặc trưng & trọng số chú ý `GAT`. |
+| **05** | `05_Cross_Map_Validation_PEMS04.ipynb` | `05_Cross_Map_Validation_Report.md` *(dự kiến)* | **Kiểm chứng độc lập (`PEMS04`):** Tự tính ngưỡng theo dữ liệu `PEMS04` và kiểm chứng lại hiệu quả của dấu hiệu tiền tắc nghẽn trên bản đồ mới. |
 
 ### Quy ước thư mục lưu trữ
 * **Dữ liệu không đẩy lên GitHub (nằm trong `.gitignore`):** Dữ liệu thô tại `datasets/data/` và dữ liệu đã làm sạch tại `datasets/cleaned/`.
@@ -40,6 +38,6 @@ Không tách riêng mục trực quan hóa — **biểu đồ và bảng số li
 ---
 
 ## 3. Lưu ý kỹ thuật bắt buộc
-* Cố định `SEED = 42` và chạy trong môi trường `.venv` (`Python 3.12`, `TensorFlow / Keras`).
+* Cố định `SEED = 42` và chạy trong môi trường `.venv` (`Python 3.12`, `PyTorch`).
 * **Hiển thị bảng `DataFrame` bằng `display(df)`** (đã có sẵn trong Jupyter/IPython, không cần import thừa) hoặc đặt `df` ở cuối cell để hiển thị bảng HTML trực quan; khi chạy kiểm tra qua CLI thì truyền `IPython.display.display` vào namespace `exec()`.
 * Mọi con số ghi trong Markdown và báo cáo `.md` bắt buộc phải khớp `100%` với `stdout` sau lần chạy cuối cùng (chi tiết xem [`rules.md`](./rules.md)).

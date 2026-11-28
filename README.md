@@ -1,31 +1,30 @@
-# Spatio-Temporal Anatomy of Urban Traffic Bottlenecks
+# Physics-Informed Pre-Congestion Signals for Freeway Bottleneck Forecasting with Graph Attention
 
-**Giải phẫu Không gian – Thời gian các Nút thắt Giao thông Đô thị: Tín hiệu Cảnh báo sớm và Thử nghiệm Điều tiết chủ động qua Mạng Nơ-ron Đồ thị**
+**Tín hiệu Tiền tắc nghẽn Hướng Vật lý cho Bài toán Dự báo Điểm nghẽn Cao tốc bằng Mạng Chú ý Đồ thị**
 
-Dự án nghiên cứu cuối kỳ môn *Data Visualization & Analytics* (bài báo chuẩn IEEE $\le 3.000$ từ) trên hai mạng lưới cảm biến cao tốc Caltrans PeMS (`PEMS08` làm tập nghiên cứu chính và `PEMS04` làm tập kiểm chứng độc lập).
+Dự án nghiên cứu cuối kỳ môn *Data Visualization & Analytics* (bài báo chuẩn IEEE $\le 3.000$ từ) trên hai mạng lưới cảm biến cao tốc Caltrans PeMS (`PEMS08` làm tập nghiên cứu chính và `PEMS04` giữ độc lập hoàn toàn cho bước kiểm chứng chéo cuối cùng `NB05`). Chi tiết định hướng xem tại [`docs/plan.md`](./docs/plan.md) và tổng quan 35 bài báo tại [`docs/literature_review.md`](./docs/literature_review.md).
 
 ---
 
-## 1. Lộ trình 7 Bước & Báo cáo
+## 1. Lộ trình 5 Notebook Gọn nhẹ & Báo cáo
 
-| Bước | Notebook (`notebooks/`) | Báo cáo (`docs/`) | Trạng thái | Tóm tắt đầu ra chính |
+| Bước | Notebook (`notebooks/`) | Báo cáo (`docs/`) | Trạng thái | Mục tiêu chính |
 | :---: | :--- | :--- | :---: | :--- |
-| **01** | [`01_Overview.ipynb`](./notebooks/01_Overview.ipynb) | [`01_Overview_Report.md`](./docs/01_Overview_Report.md) | Hoàn thành | Kiểm toán 4 tập PeMS; chọn `PEMS08` (Primary) và `PEMS04` (Validation). |
-| **02** | [`02_Data_Cleaning_and_Interpolation.ipynb`](./notebooks/02_Data_Cleaning_and_Interpolation.ipynb) | [`02_Data_Cleaning_Report.md`](./docs/02_Data_Cleaning_Report.md) | Hoàn thành | Bộ 4 tiêu chí tách lỗi cảm biến; nội suy Hybrid (`L* = 18` bước, `Profile + Spatial Mean`). |
-| **03** | [`03_EDA_and_Bottleneck_Analysis.ipynb`](./notebooks/03_EDA_and_Bottleneck_Analysis.ipynb) | [`03_EDA_and_Bottleneck_Report.md`](./docs/03_EDA_and_Bottleneck_Report.md) | Hoàn thành | Tiêu chí tắc thực `(Speed < 40 & Occ ≥ 0,15)`; Top 20 điểm nghẽn (`71,2%` tắc `PEMS08`); đồ thị tĩnh `.gexf`. |
-| **04** | [`04_Pre_Congestion_Signal_Analysis.ipynb`](./notebooks/04_Pre_Congestion_Signal_Analysis.ipynb) | [`04_Pre_Congestion_Signal_Report.md`](./docs/04_Pre_Congestion_Signal_Report.md) | Hoàn thành | Quỹ đạo pha (`n = 3.136`); chốt `H* = 8` (`40p`); kiểm chứng `Std40p` (`5,32x`); `Self + 2 chiều` (`+9,36% PR-AUC`, `p = 2,26e-14`); tối ưu Pareto `Δt* = 15p`. |
-| **05** | `05_Modeling_and_Explainability.ipynb` | `05_Modeling_Report.md` | Đang triển khai | Đối chiếu khách quan các kiến trúc mô hình dự báo (`TensorFlow / Keras`) và giải thích mô hình. |
-| **06** | `06_Simulation_and_Cross_Validation.ipynb` | `06_Simulation_Report.md` *(dự kiến)* | Kế hoạch | Giả lập điều tiết lưu lượng đầu nguồn (`RQ2`) và kiểm chứng chéo trên `PEMS04`. |
-| **07** | `07_Research_Synthesis_and_Conclusions.ipynb` | `07_Synthesis_Report.md` *(dự kiến)* | Kế hoạch | Tổng hợp bằng chứng định lượng kết luận trọn vẹn `RQ1` và `RQ2`. |
+| **01** | [`01_Overview.ipynb`](./notebooks/01_Overview.ipynb) | [`01_Overview_Report.md`](./docs/01_Overview_Report.md) | Hoàn thành | Kiểm toán 4 tập PeMS; chọn `PEMS08` (Primary) và `PEMS04` (Held-out Validation). |
+| **02** | [`02_Data_Cleaning_and_Interpolation.ipynb`](./notebooks/02_Data_Cleaning_and_Interpolation.ipynb) | [`02_Data_Cleaning_Report.md`](./docs/02_Data_Cleaning_Report.md) | Hoàn thành | Chẩn đoán 4 chỉ số $S_1 \dots S_4$ & hồi quy cặp lân cận thuần **Chen et al. (2003)** (`0` lỗi tồn đọng). |
+| **03** | [`03_EDA_and_Bottleneck_Analysis.ipynb`](./notebooks/03_EDA_and_Bottleneck_Analysis.ipynb) | [`03_EDA_and_Bottleneck_Report.md`](./docs/03_EDA_and_Bottleneck_Report.md) | Hoàn thành | **RQ1 (thuần `PEMS08`):** Khám phá đa biến & tương quan `3 × 3`, công thức tự tính ngưỡng (FHWA `<60%` FFS + Biểu đồ cơ bản) + loại trừ `Flow`, kiểm chứng `7` chỉ báo tiền tắc nghẽn (`+21,15%` đến `+31,33% PR-AUC`), đối chiếu đồ thị tĩnh (`Betweenness` `p = 0,3966`) vs. đồ thị động `In + Out` (`+1,35%` đến `+5,53%`). |
+| **04** | `04_Modeling_and_Feature_Contribution.ipynb` | `04_Modeling_Report.md` *(kế hoạch)* | Tiếp theo | **RQ2 (`PyTorch`, `PEMS08`):** Thí nghiệm đối chứng `Base` vs. `+ 7 chỉ báo tiền tắc nghẽn` trên `Persistence`, `GRU`, `ST-GAT`; phân tích đóng góp từng nhóm đặc trưng & chú ý cạnh `GAT`. |
+| **05** | `05_Cross_Map_Validation_PEMS04.ipynb` | `05_Cross_Map_Validation_Report.md` *(kế hoạch)* | Kế hoạch | **Kiểm chứng độc lập (`PEMS04`):** Tự hiệu chỉnh ngưỡng từ Biểu đồ cơ bản `PEMS04` và xác nhận lại ích lợi của dấu hiệu tiền tắc nghẽn trên bản đồ mới. |
 
 ---
 
-## 2. Bộ Tham số Định lượng Đã Chốt (Từ Bước 01 – 04)
+## 2. Bộ Công thức & Đặc trưng Đã Chốt (Từ Bước 01 – 03 / RQ1 trên `PEMS08`)
 
-* **Tiêu chí tắc nghẽn thực:** `(Speed < 40 mph) & (Occupancy ≥ 0,15)`, giữ nguyên chuỗi 24h liên tục (`99,56%` tắc thực nằm trong `05–23h`, độ vững Top 20 đạt `20/20`).
-* **Cửa sổ quá khứ đầu vào (`H*`):** **`8` bước (`40 phút`)** chốt thuần thống kê qua `PACF` (`95% CI = 0,0147` cắt đồng thời cả `Speed` và `Occupancy` tại `k = 9`).
-* **Cấu trúc đồ thị đầu vào:** **`Self` + Đồ thị 2 chiều đa nhánh** (`277` cạnh có hướng duy nhất trên `PEMS08` mở rộng hai chiều + `self-loop`; `Self + 2 chiều (Mean + Max)` đạt `Val PR-AUC = 0,3383`, tăng `+9,36%` so với `Self only` với `LRT p = 2,26e-14`).
-* **Tầm dự báo tối ưu (`Δt*`):** **Mốc trọng tâm `15 phút`** (`d = 0,8067`, vùng cân bằng `10–20 phút`; dải quét `{5, 10, 15, 20, 30}` phút).
+* **Tiền xử lý chuẩn:** Thuần **Chen et al. (TRR 2003)** (`src/cleaning.py`) — đạt `0` lỗi tồn đọng trên `PEMS08` & `PEMS04`.
+* **Công thức tự tính ngưỡng từ Biểu đồ cơ bản (`src/bottlenecks.py` — không chép cứng hằng số):**
+  * $v_{\text{ff}} = \text{median}(v \mid o < 0{,}05)$, $v_{\text{cong}} = 0{,}60\,v_{\text{ff}}$ (**FHWA 23 CFR Part 490**), $v_{\text{sync}} = 0{,}80\,v_{\text{ff}}$, và $o_{\text{sat}}$ là điểm sớm nhất trên nhánh đi lên đạt $90\%$ đỉnh công suất $Q_{\max}$.
+  * **Tắc thực ($C = 1$):** $(v < v_{\text{cong}}) \land (o \ge o_{\text{sat}})$; **Pha chuyển tiếp (*Synchronized*):** chưa tắc nhưng $(v < v_{\text{sync}}) \lor (o \ge o_{\text{sat}})$.
+* **Bộ `7` chỉ báo tiền tắc nghẽn nhân quả (`H = 12` = `60 phút`):** Dao động khử dốc (`occ_rstd, spd_rstd, flow_rstd`) + Liên kết đa biến (`occ_spd_corr, flow_occ_decouple` — *Chattopadhyay & Gupta, 2026*) + Độ dốc có dấu (`occ_slope, spd_slope`).
 
 ---
 
@@ -34,11 +33,11 @@ Dự án nghiên cứu cuối kỳ môn *Data Visualization & Analytics* (bài b
 ```text
 gat-traffic-warning/
 ├── datasets/              # Dữ liệu thô (data/) và dữ liệu sạch (cleaned/) — không đẩy lên Git
-├── docs/                  # Tài liệu đề tài, quy chuẩn (rules.md, notebook-template.md) & báo cáo 01–04
-├── notebooks/             # Chuỗi Jupyter Notebook thực nghiệm từ 01 đến 07
-├── outputs/               # Biểu đồ 300 DPI (figures/), bảng điểm nghẽn (.csv) & đồ thị Gephi (.gexf)
-└── src/                   # Mã nguồn tái sử dụng (data.py, ...)
+├── docs/                  # Kế hoạch (plan.md), tổng quan văn học (literature_review.md), quy chuẩn & báo cáo
+├── notebooks/             # 5 Notebook thực nghiệm (01–05)
+├── outputs/               # Biểu đồ 300 DPI (figures/), bảng điểm tắc PEMS08 (.csv) & đồ thị (.gexf)
+└── src/                   # Mã nguồn tái sử dụng (cleaning.py, bottlenecks.py, plots_nb03.py, ...)
 ```
 
-* **Môi trường khuyến nghị:** Python `3.12` (`.venv`), `TensorFlow / Keras`, `NumPy`, `Pandas`, `SciPy`, `Scikit-learn`, `NetworkX`, `Matplotlib`, `Seaborn`, `SHAP`, cố định `SEED = 42`.
+* **Môi trường khuyến nghị:** Python `3.12` (`.venv`), **PyTorch** (`torch 2.15.0+cpu`), `NumPy`, `Pandas`, `SciPy`, `Scikit-learn`, `NetworkX`, `Matplotlib`, `Seaborn`, cố định `SEED = 42`.
 * **Quy chuẩn vận hành dự án:** Xem chi tiết tại [`docs/rules.md`](./docs/rules.md) và [`docs/notebook-template.md`](./docs/notebook-template.md).

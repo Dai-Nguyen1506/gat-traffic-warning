@@ -5,5 +5,5 @@ networkx
 matplotlib
 seaborn
 scikit-learn
-tensorflow
+torch
 shap
