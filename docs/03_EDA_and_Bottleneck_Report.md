@@ -1,99 +1,96 @@
-# Báo cáo Bước 03: Khám phá Dữ liệu Sạch (EDA) & Phân tích Điểm nghẽn
+# Báo cáo Bước 03: Khám phá Dữ liệu, Xác định Trạng thái Tắc nghẽn và Phân tích Dấu hiệu Tiền tắc nghẽn trên `PEMS08`
 
-* **Tệp nguồn:** [`03_EDA_and_Bottleneck_Analysis.ipynb`](../notebooks/03_EDA_and_Bottleneck_Analysis.ipynb)
-* **Dữ liệu đầu vào:** `datasets/cleaned/PEMS08_clean.npz` (`17.856 × 170 × 3`, `277` cạnh có hướng duy nhất sau khi gộp `18` cạnh trùng từ `295` dòng CSV gốc) và `datasets/cleaned/PEMS04_clean.npz` (`16.992 × 307 × 3`, `340` cạnh).
-* **Tệp đầu ra bàn giao:** [`PEMS08_bottlenecks.csv`](../outputs/PEMS08_bottlenecks.csv), [`PEMS04_bottlenecks.csv`](../outputs/PEMS04_bottlenecks.csv), [`PEMS08_network.gexf`](../outputs/PEMS08_network.gexf), [`PEMS04_network.gexf`](../outputs/PEMS04_network.gexf) cùng `5` biểu đồ `300 DPI` tại `outputs/figures/nb03_*.png`.
-
----
-
-## 1. Nhịp điệu Hệ thống (Ngày – Tuần) & Tương quan Mô tả 3 Biến
-
-1. **Chuỗi thời gian 30 ngày (`8.640` bước đo đầu tiên trên `PEMS08`):** Hệ thống lặp đều chu kỳ ngày–đêm và suy giảm lưu lượng, độ chiếm dụng rõ rệt vào hai ngày cuối tuần (vùng nền xám đánh dấu Thứ Bảy – Chủ Nhật theo lịch `PEMS08` bắt đầu từ Thứ Sáu `01/07/2016`). Dù **trung vị toàn mạng** ổn định quanh `60–67 mph`, đường **phân vị 5%** (nhóm `5%` trạm chậm nhất) liên tục lao dốc xuống `25–40 mph` đúng nhịp tăng của `Độ chiếm dụng` — cho thấy tắc nghẽn chỉ xảy ra cục bộ ở một nhóm trạm nhỏ chứ không phủ đều toàn mạng.
-
-2. **Tổng hợp theo Thứ – Giờ & Tương quan 3 biến:** Các ngày làm việc (Thứ Hai – Thứ Sáu) xuất hiện cấu trúc **hai đỉnh cao điểm** đặc trưng tại **`07:00–09:30`** và **`16:00–19:00`** (vận tốc toàn mạng giảm xuống `~58–61 mph`), còn cuối tuần mất đỉnh sáng. Trên toàn chuỗi, `Độ chiếm dụng` tương quan nghịch với `Vận tốc` (**`r = -0.705`**), mạnh hơn gấp đôi so với `Lưu lượng – Vận tốc` (`r = -0.282`).
-
-* **Biểu đồ minh họa:** [`nb03_clean_data_overview.png`](../outputs/figures/nb03_clean_data_overview.png) · [`nb03_one_month_timeseries.png`](../outputs/figures/nb03_one_month_timeseries.png)
+* **Tệp nguồn:** [`03_EDA_and_Bottleneck_Analysis.ipynb`](../notebooks/03_EDA_and_Bottleneck_Analysis.ipynb), mô-đun tính toán [`src/bottlenecks.py`](../src/bottlenecks.py) và mô-đun biểu đồ [`src/plots_nb03.py`](../src/plots_nb03.py)
+* **Dữ liệu đầu vào:** `datasets/cleaned/PEMS08_clean.npz` (`17.856 × 170 × 3`, `62` ngày từ `01/07` đến `31/08/2016`, `277` cạnh có hướng duy nhất, `0` lỗi tồn đọng từ Bước 02). Tập `PEMS04` giữ độc lập hoàn toàn cho bước kiểm chứng chéo cuối cùng (`NB05`).
+* **Tệp đầu ra bàn giao:** [`PEMS08_bottlenecks.csv`](../outputs/PEMS08_bottlenecks.csv), [`PEMS08_network.gexf`](../outputs/PEMS08_network.gexf) cùng `5` biểu đồ `300 DPI` tại `outputs/figures/nb03_*.png`.
 
 ---
 
-## 2. Xét đồng thời 3 Biến để Chốt Tiêu chí Tắc nghẽn & Đối chiếu Ngày – Đêm
+## 1. Phân tích Khám phá Đa biến và Cấu trúc Tương quan trên `PEMS08`
 
-### 2.1. Sơ đồ cơ bản (`Flow – Occupancy – Speed`) & Chốt tiêu chí tắc nghẽn thực sự
-
-Để định nghĩa tắc nghẽn không bị nhầm lẫn, ta xét đồng thời cả 3 biến trên `3.035.520` điểm đo của `PEMS08`:
-
-| Khoảng `Độ chiếm dụng` | Tỷ lệ quan sát | Lưu lượng TB | Vận tốc TB (`mph`) | Tỷ lệ `< 40 mph` | Trạng thái vật lý |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| `[0.00, 0.05)` | 39,47% | 105,0 | 66,6 | 0,1% | Thông thoáng mật độ thấp |
-| `[0.05, 0.10)` | 47,23% | 289,1 | 64,1 | 0,1% | Thông thoáng mật độ vừa |
-| `[0.10, 0.15)` | 9,50% | 386,1 | 59,3 | 1,6% | Đông dần, chưa gãy pha |
-| `[0.15, 0.20)` | 1,86% | **433,4** | 50,1 | 19,4% | Chạm đỉnh công suất & chớm bão hòa |
-| `[0.20, 0.30)` | 1,48% | 427,5 | **35,7** | 70,7% | Vượt ngưỡng bão hòa, dòng xe sụp pha |
-| `[0.30, 1.00)` | 0,46% | 375,2 | **24,9** | 94,8% | Tắc cứng quá tải nặng |
-
-Đối chiếu riêng 3 nhóm dưới ngưỡng `< 40 mph` để xác định vai trò từng biến:
-
-| Nhóm trạng thái | Số điểm | Tỷ lệ toàn tập | `Flow` (`P5 / P25 / TV`) | `Occ` Trung vị | `Speed` Trung vị | Kết luận |
-| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **`Tắc thực (Speed < 40 & Occ ≥ 0.15)`** | **55.848** | **1,84%** | **133 / 300 / 402** | **0,256** | **31,6 mph** | **Tiêu chí chuẩn được chốt** |
-| `Chạy chậm vắng xe (Speed < 40 & Occ < 0.15)` | 6.765 | 0,22% | 30 / 77 / 203 | 0,119 | 35,2 mph | Nhiễu đường vắng, bị loại |
-| `Tắc cứng nặng (Speed < 40 & Occ ≥ 0.30)` | 13.172 | 0,43% | 111 / 239 / 366 | 0,334 | 24,0 mph | `Flow` tụt ngược khi quá tải |
-
-> **Nhận xét (Vai trò của cả 3 biến & Định nghĩa thống nhất):**
->
-> * **`Vận tốc < 40 mph` kết hợp `Độ chiếm dụng ≥ 0.15`:** Loại bỏ được `6.765` điểm chạy chậm khi mặt đường thưa xe (`Flow` tại `P5–P25` chỉ `30–77` xe/5 phút), giữ lại đúng **`55.848` điểm tắc nghẽn thực sự (`1,84%`)**.
->
-> * **Vì sao không cắt ngưỡng cứng theo `Lưu lượng`:** `Lưu lượng` có tính **phi đơn điệu (đa trị)**: tăng từ `105,0` lên đỉnh công suất `433,4` ở `[0.15, 0.20)` nhưng khi rơi vào tắc cứng nặng (`Occ ≥ 0.30`), dòng xe đứng bánh khiến lưu lượng tụt ngược xuống `P5 = 111`, `P25 = 239`, `TV = 366`. Do đó, `Lưu lượng` được dùng để kiểm chứng vật lý và làm biến đầu vào cho mô hình dự báo, không đặt ngưỡng cắt cứng.
->
-> * **Tiêu chí chuẩn chốt thống nhất cho toàn bộ các bước tiếp theo:** **`Tắc nghẽn thực sự ⇔ (Vận tốc < 40 mph) và (Độ chiếm dụng ≥ 0.15)`**.
-
-* **Biểu đồ minh họa:** [`nb03_fundamental_diagram.png`](../outputs/figures/nb03_fundamental_diagram.png)
-
-### 2.2. Áp dụng tiêu chí 3 biến lên Ban ngày và Ban đêm (`PEMS08`)
-
-| Khung giờ | Số điểm tắc thực | Tỷ lệ trong khung giờ | Tỷ trọng trên toàn mạng | `Flow TV` (`Tắc / Thông`) | `Occ TV` (`Tắc / Thông`) | `Speed TV` (`Tắc / Thông`) |
+| Biến đo lường | Đơn vị | Trung bình | Độ lệch chuẩn | Nhỏ nhất | Trung vị | Lớn nhất |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Ban ngày (`06–21h`)** | **54.330** | **2,68%** | **97,28%** | 405,0 / 275,0 | 0,257 / 0,074 | 31,7 / 64,2 |
-| **Tối muộn (`22–23h`)** | 778 | 0,31% | 1,39% | 115,0 / 150,0 | 0,213 / 0,039 | 14,6 / 67,6 |
-| **Đêm khuya (`00–04h`)** | **243** | **0,04%** | **0,44%** | 104,0 / 82,0 | **0,244** / 0,022 | **13,1** / 67,1 |
-| **Sáng sớm (`05h`)** | 497 | 0,39% | 0,89% | 153,0 / 165,0 | 0,244 / 0,047 | 33,7 / 67,5 |
+| **`Lưu lượng (Flow)`** | `xe / 5 phút` | 230,8092 | 146,1292 | 0,0000 | 215,0000 | 1.147,0000 |
+| **`Độ chiếm dụng (Occupancy)`** | `tỷ lệ [0, 1]` | 0,0651 | 0,0459 | 0,0000 | 0,0601 | 0,8955 |
+| **`Vận tốc (Speed)`** | `mph` | 63,7633 | 6,6499 | 3,0000 | 64,9000 | 82,3000 |
 
-> **Nhận xét (Vì sao vẫn giữ đủ chuỗi 24h liên tục):**
->
-> * Ban ngày (`06–21h`) chiếm `97,28%` thời lượng tắc thực; gộp khung `05–23h` đạt **`99,56%`**.
->
-> * Vào đêm khuya (`00–04h`) vẫn tồn tại **`243` ca tắc cục bộ thật sự** (`Occ TV = 0,244`, `Speed TV = 13,1 mph`, `Flow TV = 104,0` cao hơn cả lúc thông thoáng ban đêm `82,0`), đồng thời không còn nhiễu đường vắng. Nhờ tiêu chí 3 biến đã làm sạch nhãn tự nhiên, các Bước 04–05 có thể giữ nguyên chuỗi thời gian liên tục 24h (không cần cắt bỏ đêm làm đứt gãy chuỗi) và kiểm chứng bổ sung trên riêng khung `05–23h`.
+* **Ma trận tương quan Pearson `3 × 3` trên toàn tập (`3.035.520` điểm đo):**
+
+| Biến | `Flow` | `Occupancy` | `Speed` |
+| :--- | :---: | :---: | :---: |
+| **`Flow`** | `1,0000` | `+0,6735` | `-0,2968` |
+| **`Occupancy`** | `+0,6735` | `1,0000` | **`-0,7531`** |
+| **`Speed`** | `-0,2968` | **`-0,7531`** | `1,0000` |
+
+* **Nhịp điệu cao điểm sáng–chiều:** Trên `10` trạm chịu tải nặng nhất (`[22, 167, 13, 14, 4, 71, 128, 65, 100, 117]`), chuỗi 14 ngày của đủ `3` biến và nhiệt đồ Thứ × Giờ thể hiện rõ **cao điểm sáng T2–T6 (`07–09h`, TB `48,66 mph`)**, **cao điểm chiều T2–T6 (`14–18h`, TB `45,45 mph`, thấp nhất Thứ Sáu lúc `15h` xuống `37,55 mph`)**, và cuối tuần thông thoáng (**`59,75 mph`**).
+* **Biểu đồ minh họa:** [`nb03_pems08_overview.png`](../outputs/figures/nb03_pems08_overview.png) *(Chuỗi 14 ngày đủ `3` biến Vận tốc – Độ chiếm dụng – Lưu lượng TB + Nhiệt đồ Thứ × Giờ + Ma trận Heatmap tương quan `3 × 3`)*.
 
 ---
 
-## 3. Tập trung Điểm nghẽn (Pareto Top 20) & Giải phẫu Đồ thị Tĩnh
+## 2. Xác định Ngưỡng Tắc nghẽn từ Biểu đồ Cơ bản và Lý giải Loại trừ Lưu lượng
 
-### 3.1. Phân hóa theo nguyên lý Pareto
-* **`PEMS08` (`N = 170`):** Tỷ lệ tắc thực trung bình toàn mạng là **`1,84%`**, có tới **`125 / 170` trạm (`73,5%`)** hầu như không bao giờ tắc (`< 1%` thời gian). Ngược lại, **Top `20` trạm (`11,8%` mạng lưới)** có tần suất tắc từ **`4,54%` đến `30,6%`** (cao gấp **`2,5 – 16,6 lần`** mức trung bình toàn mạng `1,84%`) và **gánh tới `71,2%` tổng thời lượng tắc nghẽn thực của cả mạng lưới**.
-* **`PEMS04` (`N = 307`):** Tỷ lệ tắc thực chung là **`2,74%`** (`158 / 307` trạm `< 1%`); tắc nghẽn phân tán rộng hơn nên Top 20 trạm (`9,76%–29,0%`) gánh **`33,9%`**.
-* **Độ vững theo thời gian trong ngày:** Khi giới hạn riêng khung giờ `05–23h`, danh sách Top 20 trạm trùng tuyệt đối **`20 / 20` (`100%`)** trên cả `PEMS08` lẫn `PEMS04`.
-* **Biểu đồ minh họa:** [`nb03_bottleneck_concentration.png`](../outputs/figures/nb03_bottleneck_concentration.png)
+Áp dụng quy chuẩn liên bang Hoa Kỳ **FHWA (23 CFR Part 490 / NPMRDS)** kết hợp nguyên lý Biểu đồ cơ bản (**Chen et al., 2004**; **Choe et al., 2002**; **Cassidy & Bertini, 1999**), Phần 2 xác định ranh giới nhị phân **`Thông thoáng` vs. `Tắc thực`** trực tiếp từ dữ liệu `PEMS08`:
 
-### 3.2. Kiểm định Spearman giữa 3 chỉ số đồ thị tĩnh và Tần suất tắc thực
+| Tham số tự tính trên `PEMS08` | Giá trị tính ra | Cơ sở & Đối chiếu lý thuyết |
+| :--- | :---: | :--- |
+| **Vận tốc tự do ($v_{\text{ff}} = \text{median}(v \mid o < 0{,}05)$)** | **`67,10 mph`** | Tốc độ dòng tự do đặc trưng của mạng |
+| **Ngưỡng tắc nghẽn ($v_{\text{cong}} = 0{,}60\,v_{\text{ff}}$)** | **`40,26 mph`** | Quy chuẩn **FHWA (`< 60%` FFS)**; tự khớp sát `~40 mph` (Chen et al., 2004) |
+| **Đỉnh công suất Biểu đồ cơ bản ($o_{\text{crit}}$ / $Q_{\max}$)** | **`0,1675` (`438,6 xe/5p`)** | Điểm bắt đầu hiệu ứng *Capacity Drop* (Cassidy & Bertini, 1999) |
+| **Ngưỡng chiếm dụng tối thiểu ($o_{\text{sat}}$ tại `90% Q_max` nhánh lên)** | **`0,1325` (`13,25%`)** | Ước lượng hướng dữ liệu khớp dải `11%–15%` (Choe et al., 2002 / HCM) |
 
-| Chỉ số cấu trúc tĩnh | `PEMS08` (`N = 170`) | `PEMS04` (`N = 307`) | Kết luận |
+* **Điều kiện Tắc thực:** $C_i(t) = \mathbb{I}[v_i(t) < 40{,}26 \land o_i(t) \ge 0{,}1325]$ xác nhận **`59.003` điểm (`1,94%`, lọc sạch `4.752` điểm chạy chậm khi đường vắng, `99,51%` trong `05–23h`)**.
+* **Lý giải loại trừ ngưỡng `Flow`:** Khi tắc cứng quá tải (`Occ ≥ 0,30`, `Speed TB = 23,7 mph`), `Flow` tụt ngược **`-13,7%`** so với vùng đỉnh (`433,6 → 374,2 xe/5p`, trung vị `367,0`, thấp hơn cả lúc chạy thoáng `61,6 mph` có trung vị `400,0`). Trong dải `Flow ∈ [300, 450]` (`672.898` điểm), có tới **`90,7%` đang thông thoáng** và chỉ `3,4%` bị tắc (`Flow AUC = 0,7586` so với `Occ AUC = 0,9781`).
+* **Biểu đồ minh họa:** [`nb03_fundamental_and_workday.png`](../outputs/figures/nb03_fundamental_and_workday.png)
+
+---
+
+## 3. Phân tích Chuyển pha và Đánh giá Hệ chỉ báo Tiền tắc nghẽn
+
+Từ điều kiện tắc thực ở Phần 2, Phần 3 xác lập **Pha chuyển tiếp tiền tắc nghẽn** (*Synchronized Flow* — **Kerner, 2004**) với $v_{\text{sync}} = 0{,}80\,v_{\text{ff}} = \mathbf{53{,}68\text{ mph}}$ (`152.114` điểm = `5,01%`) và cố định cửa sổ nhân quả chuẩn **`H = 12` bước (`60 phút`)** đồng bộ với ma trận đầu vào `NB04` để trích xuất đủ **`7` chỉ báo mạnh** thuộc `3` nhóm:
+
+1. **Nhóm 1 — Dao động khử dốc (*Kerner, 2004*):** `occ_rstd`, `spd_rstd`, `flow_rstd`. Tại `t = 0`, `occ_rstd` và `spd_rstd` tăng vọt **`2,29× – 2,37×`** so với mốc `-60p`, còn `flow_rstd` chỉ tăng `1,12×`.
+2. **Nhóm 2 — Liên kết Đa biến (*Multivariate CSD* — Chattopadhyay & Gupta, *RSOS* 2026):** Kế thừa kết luận của bài báo rằng các chỉ báo đa biến vượt trội chỉ báo đơn biến, sử dụng 2 cặp tương quan chéo nhất quán theo Biểu đồ cơ bản: **`occ_spd_corr` (`-corr(Occ, Speed)`)** tăng từ **`+0,552 → +0,905`** (`AUC = 0,8490`, `≥55 mph: 0,7304`) và **`flow_occ_decouple` (`-corr(Flow, Occ)`)** bứt phá từ **`-0,648 → +0,135`** (`AUC = 0,8217`, `≥55 mph: 0,6439`).
+3. **Nhóm 3 — Độ dốc có dấu (*California / McMaster* & phần xu hướng từ bước khử dốc):** `occ_slope` và `spd_slope`. Trên trọn chu kỳ **`-60p → +90p`** của **`n = 3.199` ca mới sạch** (`48,4%` trong `6.611` ca trên `170` trạm), khi bước sang pha hồi phục (`t = +60p`) dù `occ_rstd` còn cao gấp **`2,41×`**, cặp độ dốc lập tức **đảo dấu đối xứng** (`spd_slope = +0,85 mph/5p`, `occ_slope = -0,0042/5p`) để chặn báo động giả.
+
+### Đánh giá định lượng toàn mạng (`Δt = 15p` đơn biến & `LRT` trên chia `60 / 20 / 20`)
+
+* **Sức mạnh đơn biến (`n = 2.928.641` điểm thông sạch 60p):** Toàn bộ `7` chỉ báo đều đạt mạnh và đồng đều (`AUC = 0,78–0,93`, $p < 10^{-300}$): `occ_rstd` **`0,9318`** (`RR 36,42×`, `≥55 mph: 0,8613`), `spd_rstd` **`0,9044`** (`25,67×`, `0,7983`), **`occ_spd_corr` `0,8490`** (`13,54×`, `0,7304`), **`flow_occ_decouple` `0,8217`** (`10,49×`, `0,6439`), `spd_slope` `0,8113`, `occ_slope` `0,8101`, `flow_rstd` `0,7784`.
+* **Giá trị cộng thêm `LRT` (`60 / 20 / 20`):**
+
+| Tầm cảnh báo (`Δt`) | `Raw 3 biến` (`Val PR-AUC`) | `Raw + 7 CSD` (`Val PR-AUC`) | Tăng `PR-AUC` (%) | `Log-Loss` (`Raw → +CSD`) | `LRT χ²` (`df = 7`) | `p` *(LRT)* |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`5 phút`** | 0,1888 | **0,2480** | **`+31,33%`** | `0,00422 → 0,00400` | **263,8** | **`3,20e-53`** |
+| **`15 phút`** | 0,1483 | **0,1797** | **`+21,15%`** | `0,01217 → 0,01164` | **616,3** | **`7,68e-129`** |
+| **`30 phút`** | 0,1168 | **0,1437** | **`+23,00%`** | `0,02125 → 0,02034` | **1.060,4** | **`1,04e-224`** |
+
+* **Biểu đồ minh họa:** [`nb03_precongestion_trajectories.png`](../outputs/figures/nb03_precongestion_trajectories.png) · [`nb03_precongestion_validation.png`](../outputs/figures/nb03_precongestion_validation.png)
+
+---
+
+## 4. Phân tích Cấu trúc Đồ thị: Đối chiếu Hình học Tĩnh và Tương tác Động Lân cận
+
+* **Mặt 1 — Hình học đồ thị TĨNH (`Li et al., PNAS 2015`) không nhận biết được điểm tắc (`47 / 170` trạm tắc `≥ 1%`):**
+
+| Chỉ số đồ thị tĩnh (`PEMS08`, `N = 170`) | `Spearman ρ` | `p-value` | Kết luận kiểm định giả thuyết |
 | :--- | :---: | :---: | :--- |
-| **`Degree` (Bậc kết nối)** | $\rho = 0,185, \; p = 0,0156$ | $\rho = 0,127, \; p = 0,0266$ | Tương quan thuận yếu, có ý nghĩa thống kê ($p < 0,05$) |
-| **`Weighted Betweenness`** | $\rho = 0,067, \; p = 0,3842$ | $\rho = 0,051, \; p = 0,3704$ | Không có ý nghĩa thống kê ở cả 2 mạng |
-| **`Weighted Closeness`** | $\rho = 0,232, \; p = 0,0024$ | $\rho = 0,035, \; p = 0,5458$ | Có ý nghĩa trên `PEMS08`, mất ý nghĩa trên `PEMS04` |
+| **`Weighted Betweenness Centrality`** | **`0,0654`** | **`0,3966`** | **Chấp nhận $H_0$ ($p > 0,05$): hình học tĩnh không nhận biết được điểm tắc** |
+| `Degree` (Tổng bậc vào + ra) | `0,1859` | `0,0152` | Tương quan rất yếu |
 
-> **Nhận xét:**
->
-> * Hình học đồ thị tĩnh đơn lẻ không đủ dự báo nhất quán vị trí điểm nghẽn trên mọi mạng lưới (ví dụ `N9` tắc `18,0%` và `N65` tắc `15,6%` dù có `Betweenness` rất thấp) → cần chuyển sang kiểm chứng động lực chuỗi thời gian và tín hiệu từ các nhánh lân cận trước khi tắc nghẽn bùng phát.
+  *(Phản ví dụ trực tiếp: `N9` tắc `18,1%` có `Betweenness = 0,0000`, `N65` tắc `15,7%` có `Betweenness = 0,0047`).*
 
-* **Biểu đồ minh họa:** [`nb03_network_map_pems08.png`](../outputs/figures/nb03_network_map_pems08.png)
+* **Mặt 2 — Tương tác ĐỘNG trên cạnh có hướng (`Lân cận Đầu vào In` & `Đầu ra Out` — DCRNN, `Li et al., 2018`) đóng góp rõ rệt, đặc biệt ở tầm xa `15–30p`:**
+
+| Tầm cảnh báo (`Δt`) | Cục bộ (`3 gốc + 7 chỉ báo`) | `+ Lân cận In` (Đầu vào) | `+ Lân cận Out` (Đầu ra) | **`+ Cả 2 chiều (In + Out)`** | Tăng `PR-AUC` (%) | `LRT χ²` (`df = 6`) | `p` *(LRT)* |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`5 phút`** | 0,2480 | 0,2471 | 0,2528 | **0,2514** | **`+1,35%`** | **51,6** | **`2,25e-09`** |
+| **`15 phút`** | 0,1797 | 0,1853 | 0,1867 | **0,1896** | **`+5,51%`** | **206,6** | **`7,37e-42`** |
+| **`30 phút`** | 0,1437 | 0,1456 | 0,1518 | **0,1516** | **`+5,53%`** | **431,4** | **`4,93e-90`** |
+
+  *Chiều `Out` (sóng tắc dội ngược từ hạ nguồn) mạnh hơn `In` ở cả `3` mốc, và lợi ích đồ thị thể hiện rõ nhất ở tầm `15–30 phút` khi sóng tắc có đủ thời gian lan truyền giữa các trạm.*
+* **Biểu đồ minh họa:** [`nb03_spatial_and_betweenness.png`](../outputs/figures/nb03_spatial_and_betweenness.png)
 
 ---
 
-## 4. Tổng kết Bàn giao sang Bước 04
+## 5. Tổng kết Câu hỏi Nghiên cứu 1 và Thiết lập Đầu vào cho Mô hình hóa
 
-* **Tiêu chí tắc nghẽn thực thống nhất:** **`(Vận tốc < 40 mph) & (Độ chiếm dụng ≥ 0,15)`**, giữ nguyên chuỗi 24h liên tục.
-* **Tập mục tiêu trọng tâm:** **Top 20 điểm nghẽn `PEMS08`** (gánh `71,2%` tổng thời lượng tắc thực, bền vững `20/20` trong khung `05–23h`), giữ toàn bộ `170` trạm làm nút đồ thị đầu vào.
-* **Tệp bàn giao:** `outputs/PEMS08_bottlenecks.csv`, `outputs/PEMS04_bottlenecks.csv`, `outputs/PEMS08_network.gexf`, `outputs/PEMS04_network.gexf` và `5` biểu đồ `nb03_*.png`.
-
-**Tiếp theo:** Kiểm chứng dấu hiệu tiền tắc nghẽn và chốt bộ tham số đầu vào – đầu ra (`H*`, đồ thị 2 chiều đa nhánh, `Δt*`) tại [`04_Pre_Congestion_Signal_Analysis.ipynb`](../notebooks/04_Pre_Congestion_Signal_Analysis.ipynb) ([Báo cáo Bước 04](./04_Pre_Congestion_Signal_Report.md)).
+* **Đầu ra chốt trên `PEMS08`:** Ngưỡng tự tính `v_cong = 40,26 mph`, `o_sat = 0,1325`, `v_sync = 53,68 mph`; ma trận đầu vào cố định `H = 12` bước (`60 phút`) × `14` đặc trưng chuẩn hóa (`3` biến gốc + `7` chỉ báo tiền tắc nghẽn nhân quả + `4` chu kỳ `sin/cos`) cùng đồ thị có hướng `outputs/PEMS08_network.gexf` và `outputs/PEMS08_bottlenecks.csv` bàn giao sang `NB04` (`RQ2`).
